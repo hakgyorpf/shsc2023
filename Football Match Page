@@ -1,0 +1,375 @@
+<!-- MATCH PAGE (SCOREBOARD + FEED) — paste inside Webpage Maker -->
+<!-- Replace GAS_URL_HERE and SUBMIT_PAGE_URL_HERE -->
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&family=Josefin+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+.fbm {
+  --pitch-1: #2d6a4f;
+  --pitch-2: #0f2818;
+  --pitch-shadow: rgba(4,10,7,0.5);
+  --accent-1: #d8f3dc;
+  --accent-2: #52b788;
+  --accent-shadow: #1b4332;
+  --accent-text: #08150d;
+  --badge: #74c69d;
+  --text-on-deep: #eef7f0;
+  --text-on-deep-secondary: #b7d9c4;
+  --text-on-deep-muted: #7fa88f;
+  --high: #d8f3dc;
+  --gold: #d4a017;
+  --card-yellow: #f4d35e;
+  --card-red: #e0483e;
+
+  font-family: 'Nunito', sans-serif;
+  max-width: 660px; margin: 0 auto; padding: 40px 24px 56px;
+  color: var(--accent-text);
+  background: #eaf4ec;
+  border-radius: 32px;
+}
+.fbm-eventname { font-family: 'Josefin Sans', sans-serif; font-size: 1.404rem; font-weight: bold; color: var(--pitch-2); text-align: center; margin-bottom: 0.4rem; }
+.fbm-eventsub { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--pitch-1); text-align: center; margin-bottom: 1.5rem; font-weight: bold; }
+
+.fbm-guide { background: var(--pitch-2); border-radius: 20px; padding: 1rem 1.2rem; margin-bottom: 1.5rem; box-shadow: 0 6px 0 -1px rgba(4,10,7,0.4), 0 10px 18px -4px var(--pitch-shadow); font-size: 0.74rem; color: var(--text-on-deep-secondary); line-height: 1.65; }
+.fbm-guide-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent-1); font-weight: bold; margin-bottom: 0.75rem; }
+.fbm-guide ul { margin: 0; padding-left: 1.15rem; }
+.fbm-guide li { margin-bottom: 0.45rem; }
+.fbm-guide li:last-child { margin-bottom: 0; }
+.fbm-guide b { color: var(--text-on-deep); }
+
+.fbm-master-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; color: var(--pitch-1); font-weight: bold; text-align: center; margin-bottom: 0.9rem; }
+.fbm-master-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+.fbm-master-card { position: relative; overflow: hidden; box-sizing: border-box; background: var(--pitch-2); border-radius: 22px; min-height: 150px; padding: 1.15rem 1.25rem; cursor: pointer; box-shadow: 0 5px 0 -1px rgba(4,10,7,0.4), 0 8px 14px -5px var(--pitch-shadow), inset 0 2px 3px rgba(255,255,255,0.08); transition: transform 0.15s ease, filter 0.15s ease; }
+.fbm-master-card:hover { transform: translateY(-2px); filter: brightness(1.1); }
+.fbm-master-card.selected { box-shadow: 0 0 0 2px var(--accent-2), 0 6px 0 -1px rgba(4,10,7,0.4), 0 10px 17px -5px var(--pitch-shadow); }
+.fbm-master-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.7rem; }
+.fbm-master-code { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: var(--text-on-deep-secondary); }
+.fbm-master-badge { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; letter-spacing: 0.6px; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,0.1); color: var(--text-on-deep-secondary); }
+.fbm-master-vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.8rem; align-items: center; }
+.fbm-master-team.right { text-align: right; }
+.fbm-master-name { font-size: 0.95rem; font-weight: bold; color: var(--text-on-deep); min-height: 1.3em; line-height: 1.3; }
+.fbm-master-score { font-family: 'IBM Plex Mono', monospace; font-size: 1.4rem; font-weight: bold; color: var(--high); line-height: 1.8; margin-top: 0.15rem; }
+.fbm-master-vslabel { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; font-weight: bold; color: var(--accent-1); }
+.fbm-master-footer { margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.12); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.5rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--text-on-deep-secondary); }
+.fbm-master-footer > span:first-child { text-align: left; }
+.fbm-master-footer > span:last-child { text-align: right; }
+.fbm-master-footer .fbm-master-clock { text-align: center; color: var(--high); font-weight: bold; white-space: nowrap; font-size: 0.68rem; }
+.fbm-master-card.finished { opacity: 0.8; }
+.fbm-master-winner { color: var(--high); font-weight: bold; }
+.fbm-empty { text-align: center; font-size: 0.72rem; color: #6b8674; font-style: italic; padding: 1rem 0.6rem; }
+.fbm-loading { color: var(--pitch-1); font-size: 0.8rem; font-style: italic; text-align: center; }
+@media (max-width: 700px) {
+  .fbm-master-grid { grid-template-columns: 1fr; }
+  .fbm-master-vs { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.55rem; }
+  .fbm-master-name { overflow-wrap: anywhere; }
+}
+
+.fbm-detail-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; letter-spacing: 2px; text-transform: uppercase; color: var(--pitch-1); font-weight: bold; margin: 0.5rem 0 0.8rem; }
+
+.fbm-serve-link { display: inline-flex; align-items: center; justify-content: center; width: 260px; max-width: 100%; margin: 0 auto; background: var(--accent-2); border: none; border-radius: 20px; padding: 0.5rem 0.9rem; font-family: 'Nunito', sans-serif; font-weight: bold; font-size: 0.85rem; color: #06170e !important; -webkit-text-fill-color: #06170e; cursor: pointer; text-decoration: none; box-shadow: 0 3px 0 var(--accent-shadow), 0 6px 10px rgba(4, 10, 7, 0.3); white-space: nowrap; }
+.fbm-serve-link:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.fbm-top-roll-wrap { display: flex; justify-content: center; width: 100%; margin: 0 0 1rem; }
+
+.fbm-board { background: var(--pitch-2); border: none; border-radius: 26px; padding: 1.3rem 1.4rem; margin-bottom: 1.5rem; box-shadow: 0 10px 0 -2px rgba(4,10,7,0.4), 0 16px 26px -6px var(--pitch-shadow); }
+.fbm-typebadge { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; letter-spacing: 1px; padding: 3px 10px; border-radius: 12px; margin-bottom: 0.6rem; margin-right: 0.35rem; font-weight: bold; }
+.fbm-typebadge.pvp { background: var(--accent-2); color: #06170e; box-shadow: 0 2px 0 var(--accent-shadow); }
+.fbm-typebadge.pvnpc { background: rgba(255,255,255,0.15); color: var(--text-on-deep-secondary); }
+.fbm-typebadge.phase { background: rgba(216,243,220,0.18); color: var(--high); text-transform: uppercase; }
+.fbm-typebadge.round { background: rgba(255,255,255,0.12); color: var(--text-on-deep-secondary); }
+.fbm-vs-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 1rem; }
+.fbm-p-left { text-align: left; } .fbm-p-right { text-align: right; }
+.fbm-pname { font-size: 0.95rem; color: var(--text-on-deep); font-weight: bold; }
+.fbm-pscore { font-family: 'IBM Plex Mono', monospace; font-size: 2rem; color: var(--high); font-weight: bold; line-height: 1.2; }
+.fbm-vs { font-family: 'IBM Plex Mono', monospace; font-size: 1rem; color: var(--accent-1); font-weight: bold; }
+
+.fbm-progress-row { margin-top: 0.9rem; }
+.fbm-progress-label { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--text-on-deep-secondary); margin-bottom: 0.25rem; }
+.fbm-progress-bar { height: 10px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden; margin-bottom: 0.6rem; }
+.fbm-progress-fill { height: 100%; border-radius: 999px; }
+.fbm-clockrow { border-top: 1px solid rgba(255,255,255,0.15); margin-top: 0.6rem; padding-top: 0.75rem; text-align: center; }
+.fbm-clock { font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; color: var(--text-on-deep); font-weight: bold; }
+.fbm-clocklabel { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; letter-spacing: 1px; text-transform: uppercase; color: var(--text-on-deep-secondary); margin-top: 0.2rem; }
+.fbm-possession-banner { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--gold); font-weight: bold; margin-top: 0.6rem; }
+.fbm-cards-row { display: flex; justify-content: center; gap: 1.2rem; margin-top: 0.5rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: var(--text-on-deep-secondary); }
+.fbm-cards-row b { color: var(--card-red); }
+.fbm-status { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--text-on-deep-secondary); margin-top: 0.7rem; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 0.6rem; text-align: center; }
+.fbm-status.fin { color: var(--high); }
+
+.fbm-feed-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--pitch-1); margin-bottom: 0.75rem; font-weight: bold; }
+.fbm-feed { display: flex; flex-direction: column; gap: 0.7rem; }
+.fbm-event { background: var(--pitch-2); border: none; border-radius: 22px; padding: 1rem 1.1rem; box-shadow: 0 8px 0 -2px rgba(4,10,7,0.4), 0 12px 20px -6px var(--pitch-shadow); }
+.fbm-event-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.15); }
+.fbm-event-minute { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; letter-spacing: 1px; color: var(--accent-1); font-weight: 700; }
+.fbm-event-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--text-on-deep-muted); }
+.fbm-event-ic { font-size: 0.74rem; color: var(--text-on-deep-secondary); font-style: italic; line-height: 1.5; margin-bottom: 0.6rem; }
+.fbm-event-line { font-size: 0.8rem; color: var(--text-on-deep); line-height: 1.6; }
+.fbm-event-sub { font-family: 'IBM Plex Mono', monospace; font-size: 0.66rem; color: var(--text-on-deep-secondary); margin-top: 0.35rem; line-height: 1.6; }
+.fbm-event-sub b { color: var(--high); }
+.fbm-tag-card { display: inline-block; margin-top: 0.5rem; padding: 0.4rem 0.7rem; border-radius: 12px; background: rgba(244,211,94,0.15); font-size: 0.7rem; color: #f4d35e; font-weight: bold; }
+.fbm-tag-injury { display: inline-block; margin-top: 0.4rem; padding: 0.4rem 0.7rem; border-radius: 12px; background: rgba(224,72,62,0.15); font-size: 0.7rem; color: #e0483e; font-weight: bold; }
+.fbm-tag-goal { display: inline-block; margin-top: 0.4rem; padding: 0.4rem 0.7rem; border-radius: 12px; background: rgba(212,160,23,0.2); font-size: 0.76rem; color: #d4a017; font-weight: bold; }
+.fbm-event-autotag { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--accent-1); margin-top: 0.4rem; font-style: italic; }
+</style>
+
+<div class="fbm">
+  <p class="fbm-eventname">Suwon-si High School Competition 2023</p>
+  <p class="fbm-eventsub">⚽ Football Scoreboard</p>
+
+  <div class="fbm-guide">
+    <div class="fbm-guide-title">Cara Membaca Halaman Ini</div>
+    <ul>
+      <li>Klik salah satu pertandingan di bawah untuk melihat skor, possession, progress bar, dan feed roll-nya.</li>
+      <li>Progress terkumpul per tim (tidak hilang saat bola berpindah) — begitu mencapai 50, tim itu bisa Shoot, dan progress berkurang 50 saat tembakan dilakukan (kecuali penalti).</li>
+      <li>1 roll = 1 menit pertandingan. Babak = 45 roll, extra time = 15 roll per babak.</li>
+      <li>Kartu merah mengurangi dice cap seluruh tim (-20, bisa menumpuk), cedera mengurangi dice cap pemain itu saja (-10) — keduanya bertahan sampai akhir pertandingan.</li>
+    </ul>
+  </div>
+
+  <p class="fbm-master-title">Semua Pertandingan</p>
+  <div id="fbm-master-grid"><div class="fbm-loading">Memuat seluruh pertandingan...</div></div>
+
+  <div class="fbm-top-roll-wrap" id="fbm-top-roll-wrap" style="display:none;">
+    <a class="fbm-serve-link" id="fbm-top-roll-link" href="SUBMIT_PAGE_URL_HERE">Roll ↯</a>
+  </div>
+
+  <div class="fbm-detail-title" id="fbm-detail-title" style="display:none;">Detail Pertandingan</div>
+  <div id="fbm-board-wrap"></div>
+
+  <p class="fbm-feed-title" id="fbm-feed-title" style="display:none;">Feed Pertandingan</p>
+  <div class="fbm-feed" id="fbm-feed"></div>
+</div>
+
+<script>
+(function() {
+  var GAS         = 'https://script.google.com/macros/s/AKfycbwl_HjjMdZll4LxCxKl_X7GEioq_Ds5w3BApGUDn8QKKD9mqQb1DOaDmbINQCSFwdBQhg/exec';
+  var SUBMIT_PAGE = 'https://hakgyo.jcink.net/index.php?act=Pages&kid=footballform';
+  var curMatch = '';
+  var allMatches = [];
+  var matchData = null;
+
+  function esc(s) { var d=document.createElement('div'); d.appendChild(document.createTextNode(s==null?'':String(s))); return d.innerHTML; }
+  function getParam(n) { var m=window.location.search.match(new RegExp('[?&]'+n+'=([^&]+)')); return m?decodeURIComponent(m[1]):''; }
+
+  function fetchJSON(url, timeoutMs, retries) {
+    retries = retries == null ? 2 : retries;
+    function attempt(number) {
+      var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var opts = controller ? { signal: controller.signal } : {};
+      var timeoutId = controller ? setTimeout(function(){ controller.abort(); }, timeoutMs) : null;
+      return fetch(url, opts).then(function(r) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (!r.ok) throw new Error('http_' + r.status);
+        return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { throw new Error('json_err'); } });
+      }).catch(function(err) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (number >= retries) throw err;
+        var delay = 700 * Math.pow(2, number);
+        return new Promise(function(resolve) { setTimeout(resolve, delay); }).then(function() { return attempt(number + 1); });
+      });
+    }
+    return attempt(0);
+  }
+
+  function fmtMinute(phase, minute) {
+    var label = phase === 'ET1' || phase === 'ET2' ? 'ET ' : '';
+    return label + (minute||0) + "'";
+  }
+
+  function renderMasterCard(m) {
+    var finished = m.status === 'finished';
+    var html = '<div class="fbm-master-card'+(finished?' finished':'')+'" data-code="'+esc(m.code)+'">';
+    html += '<div class="fbm-master-top"><span class="fbm-master-code">'+esc(m.code)+'</span>';
+    html += '<span class="fbm-master-badge">'+esc(m.matchType||'')+'</span></div>';
+    html += '<div class="fbm-master-vs">';
+    html += '<div class="fbm-master-team"><div class="fbm-master-name">'+esc(m.schoolA||'')+'</div><div class="fbm-master-score">'+(m.scoreA||0)+'</div></div>';
+    html += '<div class="fbm-master-vslabel">VS</div>';
+    html += '<div class="fbm-master-team right"><div class="fbm-master-name">'+esc(m.schoolB||'')+'</div><div class="fbm-master-score">'+(m.scoreB||0)+'</div></div>';
+    html += '</div>';
+    html += '<div class="fbm-master-footer">';
+    if (finished) {
+      var wn = (parseInt(m.scoreA)||0) > (parseInt(m.scoreB)||0) ? m.schoolA : (parseInt(m.scoreB)||0) > (parseInt(m.scoreA)||0) ? m.schoolB : '';
+      html += '<span>Selesai</span>';
+      html += wn ? '<span class="fbm-master-winner">🏆 '+esc(wn)+'</span>' : '<span class="fbm-master-winner">Seri</span>';
+      html += '<span></span>';
+    } else {
+      html += '<span>'+(m.status==='halftime'?'Istirahat':'Berlangsung')+'</span>';
+      html += '<span class="fbm-master-clock">'+esc(fmtMinute(m.phase, m.halfMinute))+'</span>';
+      html += '<span></span>';
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderMasterGrid(matches) {
+    var root = document.getElementById('fbm-master-grid');
+    if (!matches || matches.length === 0) { root.innerHTML = '<div class="fbm-empty">Belum ada pertandingan.</div>'; return; }
+    root.innerHTML = '<div class="fbm-master-grid">' + matches.map(renderMasterCard).join('') + '</div>';
+    document.querySelectorAll('.fbm-master-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var code = card.getAttribute('data-code');
+        document.querySelectorAll('.fbm-master-card').forEach(function(c){ c.classList.remove('selected'); });
+        card.classList.add('selected');
+        curMatch = code;
+        document.getElementById('fbm-detail-title').style.display = 'block';
+        loadMatch(code);
+        setTimeout(function() {
+          var d = document.getElementById('fbm-detail-title');
+          if (d) d.scrollIntoView({behavior:'smooth', block:'start'});
+        }, 150);
+      });
+    });
+  }
+
+  function loadMatchList(preselect) {
+    fetchJSON(GAS+'?action=getAllMatches', 20000, 1).then(function(d) {
+      if (d.error) { document.getElementById('fbm-master-grid').innerHTML = '<div class="fbm-empty">'+esc(d.error)+'</div>'; return; }
+      allMatches = d.matches || [];
+      renderMasterGrid(allMatches);
+      if (preselect) {
+        curMatch = preselect;
+        document.getElementById('fbm-detail-title').style.display = 'block';
+        loadMatch(preselect);
+        setTimeout(function() {
+          var card = document.querySelector('.fbm-master-card[data-code="'+preselect+'"]');
+          if (card) card.classList.add('selected');
+        }, 100);
+      }
+    }).catch(function() {
+      document.getElementById('fbm-master-grid').innerHTML = '<div class="fbm-empty">Gagal memuat pertandingan. Coba muat ulang halaman.</div>';
+    });
+  }
+
+  function loadMatch(code) {
+    document.getElementById('fbm-board-wrap').innerHTML = '<div class="fbm-loading">Memuat pertandingan...</div>';
+    var rollPromise = fetchJSON(GAS+'?action=getRollLog&matchCode='+encodeURIComponent(code)+'&limit=100', 20000, 0);
+    var shootPromise = fetchJSON(GAS+'?action=getShootLog&matchCode='+encodeURIComponent(code)+'&limit=50', 20000, 0);
+    fetchJSON(GAS+'?action=getScore&matchCode='+encodeURIComponent(code), 25000, 1).then(function(d) {
+      matchData = d;
+      if (d.error) { document.getElementById('fbm-board-wrap').innerHTML = '<div class="fbm-empty">'+esc(d.error)+'</div>'; return; }
+      renderBoard(d);
+      loadFeed(rollPromise, shootPromise);
+    }).catch(function(){ document.getElementById('fbm-board-wrap').innerHTML = '<div class="fbm-empty">Koneksi gagal. Coba muat ulang halaman.</div>'; });
+  }
+
+  function progressBar(label, val, color) {
+    var pct = Math.min(100, Math.round((val/50)*100));
+    return '<div class="fbm-progress-row"><div class="fbm-progress-label"><span>'+esc(label)+'</span><span>'+val+' / 50</span></div>' +
+      '<div class="fbm-progress-bar"><div class="fbm-progress-fill" style="width:'+pct+'%; background:'+color+';"></div></div></div>';
+  }
+
+  function renderBoard(d) {
+    var isFinished = String(d.status||'').trim().toLowerCase() === 'finished';
+    var topWrap = document.getElementById('fbm-top-roll-wrap');
+    var topLink = document.getElementById('fbm-top-roll-link');
+    if (topWrap && topLink) {
+      if (!isFinished) { topLink.href = SUBMIT_PAGE; topWrap.style.display = 'flex'; }
+      else { topWrap.style.display = 'none'; }
+    }
+    var html = '<div class="fbm-board">';
+    html += '<span class="fbm-typebadge '+(d.matchType==='PvP'?'pvp':'pvnpc')+'">'+esc(d.matchType||'')+'</span>';
+    html += '<span class="fbm-typebadge phase">'+esc(d.phase||'')+'</span>';
+    if (d.round) html += '<span class="fbm-typebadge round">'+esc(d.round)+'</span>';
+    html += '<div class="fbm-vs-row">';
+    html += '<div class="fbm-p-left"><div class="fbm-pname">'+esc(d.schoolA||'')+'</div><div class="fbm-pscore">'+(d.scoreA||0)+'</div></div>';
+    html += '<div class="fbm-vs">vs</div>';
+    html += '<div class="fbm-p-right"><div class="fbm-pname">'+esc(d.schoolB||'')+'</div><div class="fbm-pscore">'+(d.scoreB||0)+'</div></div>';
+    html += '</div>';
+    html += progressBar(d.schoolA + ' progress', d.progressA||0, 'var(--accent-2)');
+    html += progressBar(d.schoolB + ' progress', d.progressB||0, 'var(--gold)');
+    html += '<div class="fbm-clockrow"><div class="fbm-clock">'+esc(fmtMinute(d.phase, d.halfMinute))+'</div><div class="fbm-clocklabel">Waktu Pertandingan</div></div>';
+    if (d.status === 'active' && d.shootReady) {
+      html += '<div class="fbm-possession-banner">🎯 '+esc(d.shootReady==='A'?d.schoolA:d.schoolB)+' sedang menembak</div>';
+    } else if (d.status === 'active' && d.teamInAttack) {
+      html += '<div class="fbm-possession-banner">⚽ '+esc(d.teamInAttack==='A'?d.schoolA:d.schoolB)+' sedang menyerang</div>';
+    }
+    if ((d.redCardsA||0) > 0 || (d.redCardsB||0) > 0) {
+      html += '<div class="fbm-cards-row"><span>'+esc(d.schoolA)+': <b>'+(d.redCardsA||0)+' 🟥</b></span><span>'+esc(d.schoolB)+': <b>'+(d.redCardsB||0)+' 🟥</b></span></div>';
+    }
+    var sc = isFinished ? ' fin' : '';
+    html += '<div class="fbm-status'+sc+'">';
+    if (isFinished) {
+      var wn = (parseInt(d.scoreA)||0) > (parseInt(d.scoreB)||0) ? d.schoolA : (parseInt(d.scoreB)||0) > (parseInt(d.scoreA)||0) ? d.schoolB : '';
+      html += wn ? '🏆 PERTANDINGAN SELESAI — '+esc(wn)+' menang '+d.scoreA+'–'+d.scoreB : '🤝 PERTANDINGAN SELESAI — seri '+d.scoreA+'–'+d.scoreB;
+    } else if (d.status === 'halftime') {
+      html += '⏸️ Menunggu babak/fase berikutnya dimulai.';
+    } else if (!d.teamInAttack) {
+      html += 'Belum kick off.';
+    } else if (d.shootReady) {
+      html += '⚽ '+esc(d.shootReady==='A'?d.schoolA:d.schoolB)+' siap menembak'+(SHOOT_TYPE_TAG[d.shootType]||'')+'.';
+    } else if (d.pendingRole) {
+      var waitingSide = d.pendingSide === 'A' ? 'B' : 'A';
+      html += '⏳ Menunggu '+esc(waitingSide==='A'?d.schoolA:d.schoolB)+' menyelesaikan roll.';
+    } else {
+      html += 'Pertandingan sedang berlangsung.';
+    }
+    html += '</div></div>';
+    document.getElementById('fbm-board-wrap').innerHTML = html;
+  }
+
+  var ACTION_LABELS = { dribble: 'Dribble', pass: 'Pass', tackle: 'Tackle', interception: 'Interception' };
+  var OUTCOME_LABEL = {
+    open_play: 'Open play', throwin_attack: 'Throw-in', throwin_defend: 'Throw-in',
+    goalkick: 'Goal kick', corner: 'Corner kick!', foul: 'Pelanggaran — Free kick', penalty: 'PENALTI!!'
+  };
+  var SHOOT_TYPE_TAG = { penalty: ' (penalti!)', corner: ' (tendangan sudut)', freekick: ' (tendangan bebas)' };
+  var SHOOT_TYPE_BADGE = { open_play: 'OPEN PLAY', penalty: 'PENALTI', corner: 'CORNER', freekick: 'FREE KICK' };
+
+  function renderRollEvent(r) {
+    var meta = matchData || {};
+    var attName = r.attackSide === 'A' ? meta.schoolA : meta.schoolB;
+    var defName = r.defendSide === 'A' ? meta.schoolA : meta.schoolB;
+    var progTeam = r.teamProgressed === 'A' ? meta.schoolA : meta.schoolB;
+    var html = '<div class="fbm-event">';
+    html += '<div class="fbm-event-header"><span class="fbm-event-minute">'+esc(fmtMinute(r.phase, r.minute))+'</span>';
+    if (r.postedAt) html += '<span class="fbm-event-time">'+esc(r.postedAt)+'</span>';
+    html += '</div>';
+    if (r.icLine && !r.autoResolved) html += '<div class="fbm-event-ic">'+esc(r.icLine)+'</div>';
+    html += '<div class="fbm-event-line"><b>'+esc(OUTCOME_LABEL[r.outcome]||'Open play')+'</b></div>';
+    html += '<div class="fbm-event-sub">'+esc(attName)+': '+esc(r.characterAttack)+' ('+esc(r.positionAttack)+(r.bonusAttack?', bonus':'')+') roll <b>'+r.rollAttack+'</b> — '+ACTION_LABELS[r.actionAttack]+'</div>';
+    html += '<div class="fbm-event-sub">'+esc(defName)+': '+esc(r.characterDefend)+' ('+esc(r.positionDefend)+(r.bonusDefend?', bonus':'')+') roll <b>'+r.rollDefend+'</b> — '+ACTION_LABELS[r.actionDefend]+'</div>';
+    html += '<div class="fbm-event-sub">Margin <b>'+r.margin+'</b> · Progress +'+r.progressGained+' untuk '+esc(progTeam)+'</div>';
+    if (r.cardTier) html += '<div class="fbm-tag-card">['+esc(r.cardTier)+' Card] '+esc(r.cardCharacter)+'</div>';
+    if (r.injuryOccurred) html += '<div class="fbm-tag-injury">'+esc(r.injuredCharacter)+' cedera</div>';
+    if (r.autoResolved) html += '<div class="fbm-event-autotag">'+esc(r.icLine)+'</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderShootEvent(s) {
+    var outcomeLabel = s.outcome === 'goal' ? 'GOL! ⚽' : s.outcome === 'offside' ? 'Offside — gol dianulir' : 'Diselamatkan!';
+    var html = '<div class="fbm-event">';
+    html += '<div class="fbm-event-header"><span class="fbm-event-minute">'+esc(fmtMinute(s.phase, s.minute))+'</span>';
+    if (s.postedAt) html += '<span class="fbm-event-time">'+esc(s.postedAt)+'</span>';
+    html += '</div>';
+    html += '<span class="fbm-typebadge round">'+esc(SHOOT_TYPE_BADGE[s.shootType]||'SHOOT')+'</span>';
+    if (s.icLine && !s.autoResolved) html += '<div class="fbm-event-ic">'+esc(s.icLine)+'</div>';
+    html += (s.outcome === 'goal') ? ('<div class="fbm-tag-goal">'+outcomeLabel+'</div>') : ('<div class="fbm-event-line"><b>'+outcomeLabel+'</b></div>');
+    if (s.flavorText) html += '<div class="fbm-event-sub" style="font-style:italic;">'+esc(s.flavorText)+'</div>';
+    html += '<div class="fbm-event-sub">Shoot: '+esc(s.characterShoot)+' ('+esc(s.positionShoot)+(s.bonusShoot?', bonus':'')+') roll <b>'+s.rollShoot+'</b></div>';
+    html += '<div class="fbm-event-sub">Save: '+esc(s.characterSave)+' roll <b>'+s.rollSave+'</b></div>';
+    html += '<div class="fbm-event-sub">Margin <b>'+s.margin+'</b> · Skor '+s.scoreAAfter+'–'+s.scoreBAfter+'</div>';
+    if (s.autoResolved) html += '<div class="fbm-event-autotag">'+esc(s.icLine)+'</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function loadFeed(rollPromise, shootPromise) {
+    document.getElementById('fbm-feed-title').style.display = 'block';
+    document.getElementById('fbm-feed').innerHTML = '<div class="fbm-loading">Memuat feed...</div>';
+    Promise.all([rollPromise, shootPromise]).then(function(results) {
+      var rolls = (results[0] && results[0].rolls) || [];
+      var shots = (results[1] && results[1].shots) || [];
+      var events = [];
+      rolls.forEach(function(r) { events.push({ type: 'roll', data: r, sortKey: r.postedAt || '' }); });
+      shots.forEach(function(s) { events.push({ type: 'shoot', data: s, sortKey: s.postedAt || '' }); });
+      events.sort(function(a,b) { return a.sortKey < b.sortKey ? 1 : a.sortKey > b.sortKey ? -1 : 0; });
+      if (events.length === 0) { document.getElementById('fbm-feed').innerHTML = '<div class="fbm-empty">Belum ada roll. Mulai pertandingan!</div>'; return; }
+      var html = events.map(function(e) { return e.type === 'roll' ? renderRollEvent(e.data) : renderShootEvent(e.data); }).join('');
+      document.getElementById('fbm-feed').innerHTML = html;
+    }).catch(function() { document.getElementById('fbm-feed').innerHTML = '<div class="fbm-empty">Gagal memuat feed.</div>'; });
+  }
+
+  var im = getParam('match');
+  loadMatchList(im);
+})();
+</script>
