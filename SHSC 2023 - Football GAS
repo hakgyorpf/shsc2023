@@ -264,7 +264,7 @@
 // SHOOTLOG COLUMNS: see appendShootLogRow()
 // ============================================================
 
-var SHEET_ID = '1_OwxW576ET9y3c116hJLbtRbj8PswDsPFWqLOF3Ohqs';
+var SHEET_ID = '1DFn9FUNEFvSy6X56S1zz94C0jN9UVNu2hYrsQYby65o';
 
 var POSITIONS = ['GK', 'DF', 'MF', 'FW'];
 var ROLL_MINUTES_PER_HALF = 45;
