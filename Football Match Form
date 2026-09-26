@@ -454,11 +454,17 @@
     list.innerHTML = '';
     if (!curMatch) { field.style.display = 'none'; return; }
     field.style.display = 'block';
-    if (rosterList.length === 0) {
+    // NPC characters can only ever be rolled for by the admin account
+    // (resolveCharacterAccess rejects anyone else naming one, on either
+    // side) — showing them to a regular player is just a dropdown option
+    // that always fails. Same hardcoded admin check renderAdminControls
+    // already uses, so the admin still sees and can pick every NPC.
+    var visibleRoster = loggedInUsername === 'Seonbi' ? rosterList : rosterList.filter(function(c) { return !c.isNPC; });
+    if (visibleRoster.length === 0) {
       var e = document.createElement('div'); e.className = 'fbf-dropdown-item empty'; e.textContent = 'Belum ada karakter terdaftar di roster.'; list.appendChild(e);
       return;
     }
-    rosterList.forEach(function(c) {
+    visibleRoster.forEach(function(c) {
       var sideName = c.teamSide === 'A' ? (scoreData ? scoreData.schoolA : 'A') : (scoreData ? scoreData.schoolB : 'B');
       var item = document.createElement('div');
       item.className = 'fbf-dropdown-item';
