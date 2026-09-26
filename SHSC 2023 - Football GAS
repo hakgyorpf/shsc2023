@@ -387,6 +387,8 @@ function routePost(data) {
 
 function routeGet(params) {
   if (params.action === 'getScore')      return getScore(params.matchCode);
+  if (params.action === 'getFormMatchData') return getFormMatchData(params.matchCode);
+  if (params.action === 'getMatchPageData') return getMatchPageData(params.matchCode);
   if (params.action === 'getMatches')    return getActiveMatches();
   if (params.action === 'getAllMatches') return getAllMatches();
   if (params.action === 'getRollLog')    return getRollLog(params.matchCode, parseInt(params.limit) || 200);
@@ -422,15 +424,17 @@ function getRosterRows(matchCode) {
   return out;
 }
 
-function getRoster(matchCode) {
-  var rows = getRosterRows(matchCode);
-  var list = rows.map(function (r) {
+function rosterPayload(rows) {
+  return rows.map(function (r) {
     return {
       teamSide: r.data[1], characterName: r.data[2], position: r.data[3],
       isNPC: !!r.data[4], username: r.data[5] || '', injured: !!r.data[6]
     };
   });
-  return { roster: list };
+}
+
+function getRoster(matchCode) {
+  return { roster: rosterPayload(getRosterRows(matchCode)) };
 }
 
 function getActiveMatches() {
@@ -468,7 +472,7 @@ function getAllMatches() {
   return { matches: list };
 }
 
-function getScore(matchCode) {
+function getScore(matchCode, rosterRows) {
   var found = findMatch(matchCode);
   if (!found) return { error: 'Match tidak ditemukan.' };
   var m = found.data;
@@ -480,7 +484,12 @@ function getScore(matchCode) {
   // blank there.
   var humanSide = '';
   if (matchType === 'PvNPC') {
-    humanSide = isSideAllNPC(matchCode, 'A') ? 'B' : (isSideAllNPC(matchCode, 'B') ? 'A' : '');
+    var rowsForSide = rosterRows || getRosterRows(matchCode);
+    var sideA = rowsForSide.filter(function (r) { return r.data[1] === 'A'; });
+    var sideB = rowsForSide.filter(function (r) { return r.data[1] === 'B'; });
+    var allNpcA = sideA.length > 0 && sideA.every(function (r) { return !!r.data[4]; });
+    var allNpcB = sideB.length > 0 && sideB.every(function (r) { return !!r.data[4]; });
+    humanSide = allNpcA ? 'B' : (allNpcB ? 'A' : '');
   }
   return {
     matchCode: m[0], schoolA: m[2], teamNameA: m[3], schoolB: m[4], teamNameB: m[5],
@@ -498,8 +507,125 @@ function getScore(matchCode) {
   };
 }
 
+
+// ============================================================
+// MATCH-SCOPED LOG STORAGE
+// The master RollLog/ShootLog tabs remain as the legacy archive.
+// Run migrateFootballLogsByMatch() once before using the new readers.
+// New events then go to one tab per match, avoiding scans across the
+// complete tournament history.
+// ============================================================
+
+function footballMatchLogTabName(kind, matchCode) {
+  var text = String(matchCode || '').trim();
+  var hash = 2166136261;
+  for (var i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  var slug = text.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 35) || 'match';
+  return (kind === 'RollLog' ? 'Roll_' : 'Shot_') + slug + '_' + (hash >>> 0).toString(36);
+}
+
+function footballLogsMigrated() {
+  return PropertiesService.getScriptProperties().getProperty('FOOTBALL_MATCH_LOGS_V1') === '1';
+}
+
+function getFootballMatchLogRows(kind, matchCode) {
+  var ss = getFootballSpreadsheet();
+  var tab = ss.getSheetByName(footballMatchLogTabName(kind, matchCode));
+  if (tab) return tab.getDataRange().getValues();
+
+  var legacy = ss.getSheetByName(kind);
+  if (!legacy || legacy.getLastRow() === 0) return [];
+  var rows = legacy.getDataRange().getValues();
+  if (footballLogsMigrated()) return rows.length ? [rows[0]] : [];
+  var out = rows.length ? [rows[0]] : [];
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1] || '') === String(matchCode || '')) out.push(rows[i]);
+  }
+  return out;
+}
+
+function getOrCreateFootballMatchLogSheet(kind, matchCode) {
+  var ss = getFootballSpreadsheet();
+  var name = footballMatchLogTabName(kind, matchCode);
+  var tab = ss.getSheetByName(name);
+  if (tab) return tab;
+
+  var legacy = ss.getSheetByName(kind);
+  if (!legacy) throw new Error('Log sheet not found: ' + kind);
+  var lastRow = legacy.getLastRow();
+  var lastColumn = legacy.getLastColumn();
+  var header = lastColumn ? legacy.getRange(1, 1, 1, lastColumn).getValues()[0] : [];
+  tab = ss.insertSheet(name);
+  if (header.length) tab.getRange(1, 1, 1, header.length).setValues([header]);
+
+  // Backfill this match if it receives an event before the one-time
+  // migration. Normal operation should run migration before match day.
+  if (!footballLogsMigrated() && lastRow > 1 && lastColumn > 0) {
+    var oldRows = legacy.getRange(2, 1, lastRow - 1, lastColumn).getValues()
+      .filter(function (row) { return String(row[1] || '') === String(matchCode || ''); });
+    if (oldRows.length) tab.getRange(2, 1, oldRows.length, oldRows[0].length).setValues(oldRows);
+  }
+  return tab;
+}
+
+function appendFootballMatchLog(kind, matchCode, row) {
+  getOrCreateFootballMatchLogSheet(kind, matchCode).appendRow(row);
+}
+
+function migrateFootballLogsByMatch() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = getFootballSpreadsheet();
+    ['RollLog', 'ShootLog'].forEach(function (kind) {
+      var source = ss.getSheetByName(kind);
+      if (!source || source.getLastRow() < 2) return;
+      var all = source.getDataRange().getValues();
+      var groups = {};
+      for (var i = 1; i < all.length; i++) {
+        var code = String(all[i][1] || '');
+        if (!code) continue;
+        if (!groups[code]) groups[code] = [];
+        groups[code].push(all[i]);
+      }
+      Object.keys(groups).forEach(function (code) {
+        var name = footballMatchLogTabName(kind, code);
+        if (ss.getSheetByName(name)) return;
+        var target = ss.insertSheet(name);
+        target.getRange(1, 1, 1, all[0].length).setValues([all[0]]);
+        var rows = groups[code];
+        target.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+      });
+    });
+    PropertiesService.getScriptProperties().setProperty('FOOTBALL_MATCH_LOGS_V1', '1');
+    return { success: true, message: 'Football logs migrated to match-specific tabs.' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getFormMatchData(matchCode) {
+  var rosterRows = getRosterRows(matchCode);
+  var score = getScore(matchCode, rosterRows);
+  if (score.error) return score;
+  return { score: score, roster: rosterPayload(rosterRows) };
+}
+
+function getMatchPageData(matchCode) {
+  var score = getScore(matchCode);
+  if (score.error) return score;
+  return {
+    score: score,
+    rolls: getRollLog(matchCode, 100).rolls,
+    shots: getShootLog(matchCode, 50).shots
+  };
+}
+
 function getRollLog(matchCode, limit) {
-  var rows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
+  var rows = getFootballMatchLogRows('RollLog', matchCode);
   var list = [];
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][1] !== matchCode) continue;
@@ -527,7 +653,7 @@ function getRollLog(matchCode, limit) {
 }
 
 function getShootLog(matchCode, limit) {
-  var rows = getFootballSpreadsheet().getSheetByName('ShootLog').getDataRange().getValues();
+  var rows = getFootballMatchLogRows('ShootLog', matchCode);
   var list = [];
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][1] !== matchCode) continue;
@@ -586,7 +712,7 @@ function getMatchStats(matchCode) {
     ensure(r.data[2], r.data[1], r.data[3]);
   });
 
-  var rollRows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
+  var rollRows = getFootballMatchLogRows('RollLog', matchCode);
   for (var i = 1; i < rollRows.length; i++) {
     var row = rollRows[i];
     if (row[1] !== matchCode) continue;
@@ -608,7 +734,7 @@ function getMatchStats(matchCode) {
     }
   }
 
-  var shootRows = getFootballSpreadsheet().getSheetByName('ShootLog').getDataRange().getValues();
+  var shootRows = getFootballMatchLogRows('ShootLog', matchCode);
   for (var j = 1; j < shootRows.length; j++) {
     var srow = shootRows[j];
     if (srow[1] !== matchCode) continue;
@@ -906,7 +1032,7 @@ function checkPvNPCCooldown(matchCode, characterName) {
   var rosterChar = findRosterCharacter(matchCode, characterName);
   if (rosterChar && rosterChar.position === 'GK') return { blocked: false };
 
-  var rows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
+  var rows = getFootballMatchLogRows('RollLog', matchCode);
   var lastTs = null;
   for (var i = rows.length - 1; i >= 1; i--) {
     if (rows[i][1] === matchCode && rows[i][2] === characterName) { lastTs = rows[i][0]; break; }
@@ -931,12 +1057,12 @@ function checkPvNPCDailyCap(matchCode, characterName) {
   var todayKey = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
   var count = 0;
 
-  var rollRows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
+  var rollRows = getFootballMatchLogRows('RollLog', matchCode);
   for (var i = 1; i < rollRows.length; i++) {
     if (rollRows[i][1] === matchCode && rollRows[i][2] === characterName && rollRows[i][0] instanceof Date &&
         Utilities.formatDate(rollRows[i][0], 'Asia/Jakarta', 'yyyy-MM-dd') === todayKey) count++;
   }
-  var shootRows = getFootballSpreadsheet().getSheetByName('ShootLog').getDataRange().getValues();
+  var shootRows = getFootballMatchLogRows('ShootLog', matchCode);
   for (var j = 1; j < shootRows.length; j++) {
     if (shootRows[j][1] === matchCode && shootRows[j][2] === characterName && shootRows[j][0] instanceof Date &&
         Utilities.formatDate(shootRows[j][0], 'Asia/Jakarta', 'yyyy-MM-dd') === todayKey) count++;
@@ -1898,7 +2024,7 @@ function appendRollLogRow(matchCode, submittedBy, phase, minute, attackData, def
     icLine || '', autoResolved || false, rollId,
     attackData.style || '', defendData.style || '', rpsResult || '', flavorTeammate || ''
   ];
-  getFootballSpreadsheet().getSheetByName('RollLog').appendRow(row);
+  appendFootballMatchLog('RollLog', matchCode, row);
 }
 
 function appendShootLogRow(matchCode, submittedBy, phase, minute, shootSide, shootType, shootData, saveData, margin, outcome, flavorText, scoreA, scoreB, icLine, autoResolved, shootId, rpsResult) {
@@ -1909,7 +2035,7 @@ function appendShootLogRow(matchCode, submittedBy, phase, minute, shootSide, sho
     margin, outcome, flavorText || '', scoreA, scoreB, icLine || '', autoResolved || false, shootId,
     shootData.style || '', saveData.style || '', rpsResult || ''
   ];
-  getFootballSpreadsheet().getSheetByName('ShootLog').appendRow(row);
+  appendFootballMatchLog('ShootLog', matchCode, row);
 }
 
 // ============================================================
