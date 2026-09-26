@@ -264,13 +264,11 @@
 
   function loadMatch(code) {
     document.getElementById('fbm-board-wrap').innerHTML = '<div class="fbm-loading">Memuat pertandingan...</div>';
-    var rollPromise = fetchJSON(GAS+'?action=getRollLog&matchCode='+encodeURIComponent(code)+'&limit=100', 20000, 0);
-    var shootPromise = fetchJSON(GAS+'?action=getShootLog&matchCode='+encodeURIComponent(code)+'&limit=50', 20000, 0);
-    fetchJSON(GAS+'?action=getScore&matchCode='+encodeURIComponent(code), 25000, 1).then(function(d) {
-      matchData = d;
+    fetchJSON(GAS+'?action=getMatchPageData&matchCode='+encodeURIComponent(code), 25000, 0).then(function(d) {
       if (d.error) { document.getElementById('fbm-board-wrap').innerHTML = '<div class="fbm-empty">'+esc(d.error)+'</div>'; return; }
-      renderBoard(d);
-      loadFeed(rollPromise, shootPromise);
+      matchData = d.score;
+      renderBoard(d.score);
+      loadFeed(Promise.resolve({ rolls: d.rolls || [] }), Promise.resolve({ shots: d.shots || [] }));
     }).catch(function(){ document.getElementById('fbm-board-wrap').innerHTML = '<div class="fbm-empty">Koneksi gagal. Coba muat ulang halaman.</div>'; });
   }
 
