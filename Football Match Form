@@ -847,7 +847,7 @@
       var row = document.getElementById('fbf-row-' + p);
       row.style.display = 'none'; row.style.opacity = '0.4';
       document.getElementById('fbf-' + p + '-rps').style.display = 'none';
-      document.getElementById('fbf-' + p + '-name').textContent = '—';
+      document.getElementById('fbf-row-' + p + '-name').textContent = '—';
       document.getElementById('fbf-' + p + '-action').textContent = '—';
       document.getElementById('fbf-' + p + '-roll').textContent = '--';
     });
