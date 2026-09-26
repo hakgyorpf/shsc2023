@@ -417,35 +417,7 @@
     document.getElementById('fbf-dropdown-list').classList.remove('open');
     document.getElementById('fbf-char-dropdown-btn').textContent = '— Pilih karaktermu —';
     document.getElementById('fbf-char-status').textContent = '';
-    loadScore(code, true);
-    loadRoster(code);
-  }
-
-  function loadRoster(code) {
-    var xr = new XMLHttpRequest();
-    xr.open('GET', GAS + '?action=getRoster&matchCode=' + encodeURIComponent(code), true);
-    xr.onload = function() {
-      var d;
-      try {
-        d = JSON.parse(xr.responseText);
-      } catch (e) {
-        console.error('loadRoster: non-JSON response (status ' + xr.status + '):', xr.responseText);
-        showErr('Gagal memuat roster (respons server tidak valid). Coba muat ulang halaman.');
-        return;
-      }
-      if (d.error) {
-        console.error('loadRoster: server error:', d.error);
-        showErr('Gagal memuat roster: ' + d.error);
-        return;
-      }
-      rosterList = d.roster || [];
-      buildCharacterUI();
-    };
-    xr.onerror = function() {
-      console.error('loadRoster: network error contacting GAS');
-      showErr('Gagal menghubungi server untuk memuat roster.');
-    };
-    xr.send();
+    loadFormMatchData(code);
   }
 
   function buildCharacterUI() {
@@ -534,6 +506,40 @@
       '<div class="fbf-progress-bar"><div class="fbf-progress-fill" style="width:'+pct+'%; background:'+color+';"></div></div></div>';
   }
 
+  function renderScoreData(d, rebuildSideUI) {
+    var box = document.getElementById('fbf-score');
+    try {
+      if (d.error) { box.innerHTML = d.error; return; }
+      scoreData = d;
+      var html = '<div class="fbf-score-badges">';
+      html += '<span class="fbf-score-typebadge ' + (d.matchType==='PvP'?'pvp':'pvnpc') + '">' + d.matchType + '</span>';
+      html += '<span class="fbf-score-typebadge phase">' + (d.phase||'—') + (d.status==='active' ? (" · " + (d.halfMinute||0) + "'") : '') + '</span>';
+      html += '</div>';
+      html += '<div class="fbf-score-vs">';
+      html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolA||'') + '</div><div class="fbf-score-points">' + (d.scoreA||0) + '</div></div>';
+      html += '<div class="fbf-score-vsbutton">VS</div>';
+      html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolB||'') + '</div><div class="fbf-score-points">' + (d.scoreB||0) + '</div></div>';
+      html += '</div>';
+      html += progressBar(d.schoolA + ' progress', d.progressA||0, 'var(--accent-2)');
+      html += progressBar(d.schoolB + ' progress', d.progressB||0, 'var(--gold)');
+      if (d.status === 'active' && d.shootReady) {
+        var shootName = d.shootReady === 'A' ? d.schoolA : d.schoolB;
+        html += '<div class="fbf-possession-note">🎯 ' + esc(shootName) + ' sedang menembak</div>';
+      } else if (d.status === 'active' && d.teamInAttack) {
+        var attName = d.teamInAttack === 'A' ? d.schoolA : d.schoolB;
+        html += '<div class="fbf-possession-note">⚽ ' + esc(attName) + ' sedang menyerang</div>';
+      }
+      if (d.status === 'finished') html += '<div class="fbf-score-clockinfo">Match sudah selesai.</div>';
+      if (d.status === 'halftime') html += '<div class="fbf-score-clockinfo">Menunggu babak/fase berikutnya dimulai.</div>';
+      box.innerHTML = html;
+      if (rebuildSideUI) buildCharacterUI();
+      buildActionArea(d);
+    } catch (e) {
+      console.error('renderScoreData: render error:', e);
+      box.innerHTML = 'Gagal menampilkan status match. Coba muat ulang halaman. (' + e.message + ')';
+    }
+  }
+
   function loadScore(code, rebuildSideUI) {
     var box = document.getElementById('fbf-score');
     if (!code) { box.style.display = 'none'; return; }
@@ -543,53 +549,44 @@
     x3.open('GET', GAS + '?action=getScore&matchCode=' + encodeURIComponent(code), true);
     x3.onload = function() {
       var d;
-      try {
-        d = JSON.parse(x3.responseText);
-      } catch (e) {
+      try { d = JSON.parse(x3.responseText); }
+      catch (e) {
         console.error('loadScore: non-JSON response (status ' + x3.status + '):', x3.responseText);
         box.innerHTML = 'Gagal memuat status match (respons server tidak valid). Coba muat ulang halaman.';
         return;
       }
-      try {
-        if (d.error) { box.innerHTML = d.error; return; }
-        scoreData = d;
-        var html = '<div class="fbf-score-badges">';
-        html += '<span class="fbf-score-typebadge ' + (d.matchType==='PvP'?'pvp':'pvnpc') + '">' + d.matchType + '</span>';
-        html += '<span class="fbf-score-typebadge phase">' + (d.phase||'—') + (d.status==='active' ? (" · " + (d.halfMinute||0) + "'") : '') + '</span>';
-        html += '</div>';
-        html += '<div class="fbf-score-vs">';
-        html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolA||'') + '</div><div class="fbf-score-points">' + (d.scoreA||0) + '</div></div>';
-        html += '<div class="fbf-score-vsbutton">VS</div>';
-        html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolB||'') + '</div><div class="fbf-score-points">' + (d.scoreB||0) + '</div></div>';
-        html += '</div>';
-        html += progressBar(d.schoolA + ' progress', d.progressA||0, 'var(--accent-2)');
-        html += progressBar(d.schoolB + ' progress', d.progressB||0, 'var(--gold)');
-        if (d.status === 'active' && d.shootReady) {
-          var shootName = d.shootReady === 'A' ? d.schoolA : d.schoolB;
-          html += '<div class="fbf-possession-note">🎯 ' + esc(shootName) + ' sedang menembak</div>';
-        } else if (d.status === 'active' && d.teamInAttack) {
-          var attName = d.teamInAttack === 'A' ? d.schoolA : d.schoolB;
-          html += '<div class="fbf-possession-note">⚽ ' + esc(attName) + ' sedang menyerang</div>';
-        }
-        if (d.status === 'finished') html += '<div class="fbf-score-clockinfo">Match sudah selesai.</div>';
-        if (d.status === 'halftime') html += '<div class="fbf-score-clockinfo">Menunggu babak/fase berikutnya dimulai.</div>';
-        box.innerHTML = html;
-
-        if (rebuildSideUI) buildCharacterUI();
-        buildActionArea(d);
-      } catch (e) {
-        // A rendering bug here would otherwise leave the box stuck on
-        // "Loading match state..." forever with no clue why — same
-        // silent-failure class as everywhere else in this file.
-        console.error('loadScore: render error:', e);
-        box.innerHTML = 'Gagal menampilkan status match. Coba muat ulang halaman. (' + e.message + ')';
-      }
+      renderScoreData(d, rebuildSideUI);
     };
     x3.onerror = function() {
       console.error('loadScore: network error contacting GAS');
       box.innerHTML = 'Gagal menghubungi server untuk memuat status match.';
     };
     x3.send();
+  }
+
+  function loadFormMatchData(code) {
+    var box = document.getElementById('fbf-score');
+    box.style.display = 'block';
+    box.innerHTML = '<span style="color:var(--text-on-deep-secondary)">Loading match state...</span>';
+    var x = new XMLHttpRequest();
+    x.open('GET', GAS + '?action=getFormMatchData&matchCode=' + encodeURIComponent(code), true);
+    x.onload = function() {
+      var d;
+      try { d = JSON.parse(x.responseText); }
+      catch (e) {
+        console.error('loadFormMatchData: non-JSON response (status ' + x.status + '):', x.responseText);
+        box.innerHTML = 'Gagal memuat pertandingan (respons server tidak valid). Coba muat ulang halaman.';
+        return;
+      }
+      if (d.error) { box.innerHTML = esc(d.error); return; }
+      rosterList = d.roster || [];
+      renderScoreData(d.score || {}, true);
+    };
+    x.onerror = function() {
+      console.error('loadFormMatchData: network error contacting GAS');
+      box.innerHTML = 'Gagal menghubungi server untuk memuat pertandingan.';
+    };
+    x.send();
   }
 
   // Client-side mirror of the backend's requireGkOwnerIfSave lock: a
