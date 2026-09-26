@@ -789,8 +789,25 @@
   //    description — each appearing in turn — and only then does the
   //    "View Match Page" link show up.
 
+  // Both the "server answered before the 3s beat" path (here) and the
+  // "beat finished first" path (beginRolling's timer, below) call the
+  // reveal function with zero surrounding try/catch of their own — a bug
+  // in runContestReveal/runShootReveal/runKickoffReveal would otherwise
+  // throw silently and leave the overlay stuck blank with no error shown,
+  // even though the roll already succeeded server-side. safeReveal makes
+  // that failure visible instead.
+  function safeReveal(fn, d) {
+    try {
+      fn(d);
+    } catch (e) {
+      console.error('reveal render error:', e);
+      hideRolling();
+      showErr('Gagal menampilkan hasil roll (tersimpan di server). Coba muat ulang halaman. (' + e.message + ')');
+    }
+  }
+
   function afterAnim(d, fn) {
-    if (actionLoadingDone) { fn(d); return; }
+    if (actionLoadingDone) { safeReveal(fn, d); return; }
     pendingRollResult = { d: d, fn: fn };
   }
 
@@ -1060,7 +1077,7 @@
       if (pendingRollResult) {
         var result = pendingRollResult;
         pendingRollResult = null;
-        result.fn(result.d);
+        safeReveal(result.fn, result.d);
       }
     }, 3000);
   }
