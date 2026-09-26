@@ -97,18 +97,41 @@
 
 .fbm-feed-title { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--pitch-1); margin-bottom: 0.75rem; font-weight: bold; }
 .fbm-feed { display: flex; flex-direction: column; gap: 0.7rem; }
-.fbm-event { background: var(--pitch-2); border: none; border-radius: 22px; padding: 1rem 1.1rem; box-shadow: 0 8px 0 -2px rgba(4,10,7,0.4), 0 12px 20px -6px var(--pitch-shadow); }
-.fbm-event-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.15); }
-.fbm-event-minute { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; letter-spacing: 1px; color: var(--accent-1); font-weight: 700; }
-.fbm-event-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--text-on-deep-muted); }
-.fbm-event-ic { font-size: 0.74rem; color: var(--text-on-deep-secondary); font-style: italic; line-height: 1.5; margin-bottom: 0.6rem; }
-.fbm-event-line { font-size: 0.8rem; color: var(--text-on-deep); line-height: 1.6; }
-.fbm-event-sub { font-family: 'IBM Plex Mono', monospace; font-size: 0.66rem; color: var(--text-on-deep-secondary); margin-top: 0.35rem; line-height: 1.6; }
-.fbm-event-sub b { color: var(--high); }
-.fbm-tag-card { display: inline-block; margin-top: 0.5rem; padding: 0.4rem 0.7rem; border-radius: 12px; background: rgba(244,211,94,0.15); font-size: 0.7rem; color: #f4d35e; font-weight: bold; }
-.fbm-tag-injury { display: inline-block; margin-top: 0.4rem; padding: 0.4rem 0.7rem; border-radius: 12px; background: rgba(224,72,62,0.15); font-size: 0.7rem; color: #e0483e; font-weight: bold; }
-.fbm-tag-goal { display: inline-block; margin-top: 0.4rem; padding: 0.4rem 0.7rem; border-radius: 12px; background: rgba(212,160,23,0.2); font-size: 0.76rem; color: #d4a017; font-weight: bold; }
-.fbm-event-autotag { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--accent-1); margin-top: 0.4rem; font-style: italic; }
+.fbm-event { background: var(--pitch-2); border: none; border-radius: 22px; padding: 1.1rem 1.2rem; box-shadow: 0 8px 0 -2px rgba(4,10,7,0.4), 0 12px 20px -6px var(--pitch-shadow); }
+.fbm-event-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.85rem; padding-bottom: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.12); }
+.fbm-event-minute { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; letter-spacing: 1px; color: var(--high); font-weight: 700; }
+.fbm-event-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; color: var(--text-on-deep-muted); }
+.fbm-event-ic { font-size: 0.74rem; color: var(--text-on-deep-secondary); font-style: italic; line-height: 1.5; margin-bottom: 0.7rem; }
+
+.fbm-event-duel { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 0.6rem; margin-bottom: 0.75rem; }
+.fbm-event-side { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.fbm-event-side.right { align-items: flex-end; text-align: right; }
+.fbm-event-name { font-size: 0.88rem; font-weight: bold; color: var(--text-on-deep); overflow-wrap: anywhere; }
+.fbm-event-style { display: inline-flex; align-items: center; gap: 0.35rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.64rem; color: var(--accent-2); }
+.fbm-event-side.right .fbm-event-style { flex-direction: row-reverse; }
+.fbm-event-style .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); flex: none; }
+.fbm-event-roll { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--text-on-deep-secondary); }
+.fbm-event-roll b { color: var(--high); font-size: 0.95rem; }
+.fbm-event-vs { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.54rem; font-weight: bold; color: var(--text-on-deep-secondary); margin-top: 0.15rem; flex: none; }
+
+.fbm-event-tag { display: flex; align-items: center; justify-content: center; gap: 0.3rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; font-weight: bold; margin-top: 0.15rem; }
+.fbm-event-tag.bonus { color: var(--gold); justify-content: flex-start; }
+.fbm-event-side.right .fbm-event-tag.bonus { justify-content: flex-end; }
+.fbm-event-tag.card-yellow { color: var(--card-yellow); }
+.fbm-event-tag.card-red { color: var(--card-red); }
+.fbm-event-tag.injury { color: var(--card-red); }
+
+.fbm-event-summary { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.64rem; color: var(--text-on-deep-secondary); margin-bottom: 0.7rem; line-height: 1.6; }
+.fbm-event-summary b { color: var(--high); }
+.fbm-event-narrative { text-align: center; font-size: 0.78rem; color: var(--text-on-deep-secondary); line-height: 1.7; }
+.fbm-event-narrative p { margin: 0 0 0.3rem; }
+.fbm-event-narrative p:last-child { margin-bottom: 0; }
+
+.fbm-tag-goal { display: block; text-align: center; margin: 0 0 0.7rem; padding: 0.5rem 0.8rem; border-radius: 12px; background: rgba(212,160,23,0.2); font-size: 0.84rem; color: var(--gold); font-weight: bold; }
+.fbm-event-autotag { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; color: var(--text-on-deep-muted); margin-top: 0.6rem; font-style: italic; text-align: center; }
+@media (max-width: 700px) {
+  .fbm-event-duel { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.4rem; }
+}
 </style>
 
 <div class="fbm">
@@ -313,23 +336,81 @@
   };
   var SHOOT_TYPE_TAG = { penalty: ' (penalti!)', corner: ' (tendangan sudut)', freekick: ' (tendangan bebas)' };
   var SHOOT_TYPE_BADGE = { open_play: 'OPEN PLAY', penalty: 'PENALTI', corner: 'CORNER', freekick: 'FREE KICK' };
+  var STYLE_LABELS = { pace: '🏃 Pace', power: '💥 Power', skill: '🎯 Skill' };
+
+  // Same continuation phrasing as the roll-submission overlay's
+  // OUTCOME_CONTINUATION, translated to Indonesian for this spectator
+  // feed (the submission form's own overlay is deliberately English —
+  // this page has always been Indonesian, see OUTCOME_LABEL above).
+  var OUTCOME_CONTINUATION = {
+    throwin_attack: function(att, def) { return 'bola keluar — lemparan ke dalam untuk ' + att + '.'; },
+    throwin_defend: function(att, def) { return 'bola keluar — lemparan ke dalam untuk ' + def + '.'; },
+    goalkick: function(att, def) { return 'bola keluar untuk goal kick.'; },
+    corner: function(att, def) { return 'bola keluar untuk tendangan sudut!'; },
+    foul: function(att, def) { return 'terjadi pelanggaran — tendangan bebas diberikan.'; },
+    penalty: function(att, def) { return 'PENALTI!! Tendangan penalti diberikan.'; }
+  };
+
+  // Builds the 1-2 line narrative for a contest roll, mirroring the
+  // submission overlay's contestNarrative() but in Indonesian third
+  // person for the public feed.
+  function contestNarrative(r, attName, defName, attSchool, defSchool) {
+    var defendWon = r.winner === 'defend';
+    var lines = [];
+    if (defendWon) {
+      var cleanVerb = r.actionDefend === 'interception'
+        ? ('Intersep bersih dari ' + defName + ' atas operan ' + attName)
+        : ('Tekel bersih dari ' + defName + ' terhadap ' + attName);
+      lines.push(cleanVerb + ' — ' + defSchool + ' kini menguasai bola.');
+      if (r.outcome && r.outcome !== 'open_play' && OUTCOME_CONTINUATION[r.outcome]) {
+        var note = OUTCOME_CONTINUATION[r.outcome](attSchool, defSchool);
+        lines.push(note.charAt(0).toUpperCase() + note.slice(1));
+      }
+    } else {
+      var verb = r.actionDefend === 'interception' ? 'gagal memotong operan' : 'gagal menekel';
+      var cont = OUTCOME_CONTINUATION[r.outcome] ? OUTCOME_CONTINUATION[r.outcome](attSchool, defSchool) : (attSchool + ' masih menguasai bola.');
+      lines.push(defName + ' ' + verb + ' ' + attName + ' — ' + cont);
+    }
+    return lines;
+  }
+
+  // One side (name/style/roll column) of the duel row shared by both
+  // event card types. position === '' skips the bonus tag entirely
+  // (Save never carries a position bonus — see positionGetsBonus on the
+  // backend, and ShootLog never even stores a position for the Save side
+  // since it's always the registered GK).
+  function eventSide(name, bonus, style, roll, align) {
+    var html = '<div class="fbm-event-side' + (align === 'right' ? ' right' : '') + '">';
+    html += '<div class="fbm-event-name">' + esc(name) + '</div>';
+    html += '<div class="fbm-event-style"><span class="dot"></span>' + esc(STYLE_LABELS[style] || '') + '</div>';
+    html += '<div class="fbm-event-roll">roll <b>' + roll + '</b></div>';
+    if (bonus) html += '<div class="fbm-event-tag bonus">🌟 Bonus posisi</div>';
+    html += '</div>';
+    return html;
+  }
 
   function renderRollEvent(r) {
     var meta = matchData || {};
     var attName = r.attackSide === 'A' ? meta.schoolA : meta.schoolB;
     var defName = r.defendSide === 'A' ? meta.schoolA : meta.schoolB;
     var progTeam = r.teamProgressed === 'A' ? meta.schoolA : meta.schoolB;
+    var narrative = contestNarrative(r, r.characterAttack, r.characterDefend, attName, defName);
+
     var html = '<div class="fbm-event">';
     html += '<div class="fbm-event-header"><span class="fbm-event-minute">'+esc(fmtMinute(r.phase, r.minute))+'</span>';
     if (r.postedAt) html += '<span class="fbm-event-time">'+esc(r.postedAt)+'</span>';
     html += '</div>';
     if (r.icLine && !r.autoResolved) html += '<div class="fbm-event-ic">'+esc(r.icLine)+'</div>';
-    html += '<div class="fbm-event-line"><b>'+esc(OUTCOME_LABEL[r.outcome]||'Open play')+'</b></div>';
-    html += '<div class="fbm-event-sub">'+esc(attName)+': '+esc(r.characterAttack)+' ('+esc(r.positionAttack)+(r.bonusAttack?', bonus':'')+') roll <b>'+r.rollAttack+'</b> — '+ACTION_LABELS[r.actionAttack]+'</div>';
-    html += '<div class="fbm-event-sub">'+esc(defName)+': '+esc(r.characterDefend)+' ('+esc(r.positionDefend)+(r.bonusDefend?', bonus':'')+') roll <b>'+r.rollDefend+'</b> — '+ACTION_LABELS[r.actionDefend]+'</div>';
-    html += '<div class="fbm-event-sub">Margin <b>'+r.margin+'</b> · Progress +'+r.progressGained+' untuk '+esc(progTeam)+'</div>';
-    if (r.cardTier) html += '<div class="fbm-tag-card">['+esc(r.cardTier)+' Card] '+esc(r.cardCharacter)+'</div>';
-    if (r.injuryOccurred) html += '<div class="fbm-tag-injury">'+esc(r.injuredCharacter)+' cedera</div>';
+    html += '<div class="fbm-event-duel">';
+    html += eventSide(r.characterAttack, r.bonusAttack, r.styleAttack, r.rollAttack, 'left');
+    html += '<div class="fbm-event-vs">VS</div>';
+    html += eventSide(r.characterDefend, r.bonusDefend, r.styleDefend, r.rollDefend, 'right');
+    html += '</div>';
+    if (r.cardTier === 'Red') html += '<div class="fbm-event-tag card-red">🟥 Kartu Merah — '+esc(r.cardCharacter)+'</div>';
+    else if (r.cardTier === 'Yellow') html += '<div class="fbm-event-tag card-yellow">🟨 Kartu Kuning — '+esc(r.cardCharacter)+'</div>';
+    if (r.injuryOccurred) html += '<div class="fbm-event-tag injury">🚑 '+esc(r.injuredCharacter)+' cedera</div>';
+    html += '<div class="fbm-event-summary">'+esc(OUTCOME_LABEL[r.outcome]||'Open play')+' · Margin <b>'+r.margin+'</b> · +'+r.progressGained+' progress untuk '+esc(progTeam)+'</div>';
+    html += '<div class="fbm-event-narrative">' + narrative.map(function(l){ return '<p>'+esc(l)+'</p>'; }).join('') + '</div>';
     if (r.autoResolved) html += '<div class="fbm-event-autotag">'+esc(r.icLine)+'</div>';
     html += '</div>';
     return html;
@@ -338,16 +419,18 @@
   function renderShootEvent(s) {
     var outcomeLabel = s.outcome === 'goal' ? 'GOL! ⚽' : s.outcome === 'offside' ? 'Offside — gol dianulir' : 'Diselamatkan!';
     var html = '<div class="fbm-event">';
-    html += '<div class="fbm-event-header"><span class="fbm-event-minute">'+esc(fmtMinute(s.phase, s.minute))+'</span>';
+    html += '<div class="fbm-event-header"><span class="fbm-event-minute">'+esc(fmtMinute(s.phase, s.minute))+' · '+esc(SHOOT_TYPE_BADGE[s.shootType]||'SHOOT')+'</span>';
     if (s.postedAt) html += '<span class="fbm-event-time">'+esc(s.postedAt)+'</span>';
     html += '</div>';
-    html += '<span class="fbm-typebadge round">'+esc(SHOOT_TYPE_BADGE[s.shootType]||'SHOOT')+'</span>';
     if (s.icLine && !s.autoResolved) html += '<div class="fbm-event-ic">'+esc(s.icLine)+'</div>';
-    html += (s.outcome === 'goal') ? ('<div class="fbm-tag-goal">'+outcomeLabel+'</div>') : ('<div class="fbm-event-line"><b>'+outcomeLabel+'</b></div>');
-    if (s.flavorText) html += '<div class="fbm-event-sub" style="font-style:italic;">'+esc(s.flavorText)+'</div>';
-    html += '<div class="fbm-event-sub">Shoot: '+esc(s.characterShoot)+' ('+esc(s.positionShoot)+(s.bonusShoot?', bonus':'')+') roll <b>'+s.rollShoot+'</b></div>';
-    html += '<div class="fbm-event-sub">Save: '+esc(s.characterSave)+' roll <b>'+s.rollSave+'</b></div>';
-    html += '<div class="fbm-event-sub">Margin <b>'+s.margin+'</b> · Skor '+s.scoreAAfter+'–'+s.scoreBAfter+'</div>';
+    html += '<div class="fbm-event-duel">';
+    html += eventSide(s.characterShoot, s.bonusShoot, s.styleShoot, s.rollShoot, 'left');
+    html += '<div class="fbm-event-vs">VS</div>';
+    html += eventSide(s.characterSave, false, s.styleSave, s.rollSave, 'right');
+    html += '</div>';
+    if (s.outcome === 'goal') html += '<div class="fbm-tag-goal">'+outcomeLabel+'</div>';
+    html += '<div class="fbm-event-summary">'+(s.outcome!=='goal'?esc(outcomeLabel)+' · ':'')+'Margin <b>'+s.margin+'</b> · Skor <b>'+s.scoreAAfter+'–'+s.scoreBAfter+'</b></div>';
+    if (s.flavorText) html += '<div class="fbm-event-narrative"><p>'+esc(s.flavorText)+'</p></div>';
     if (s.autoResolved) html += '<div class="fbm-event-autotag">'+esc(s.icLine)+'</div>';
     html += '</div>';
     return html;
