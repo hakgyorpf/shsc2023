@@ -141,7 +141,7 @@
 
 <script>
 (function() {
-  var GAS         = 'https://script.google.com/macros/s/AKfycbwl_HjjMdZll4LxCxKl_X7GEioq_Ds5w3BApGUDn8QKKD9mqQb1DOaDmbINQCSFwdBQhg/exec';
+  var GAS         = 'https://script.google.com/macros/s/AKfycbwhaBkhHXOJObp57Nse9MDM2gtaGGoCTMJFJsyPnlKrriR4sXJ-FFpoQRBvak3EPN5P/exec';
   var SUBMIT_PAGE = 'https://hakgyo.jcink.net/index.php?act=Pages&kid=footballform';
   var curMatch = '';
   var allMatches = [];
