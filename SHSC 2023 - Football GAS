@@ -1,0 +1,2071 @@
+// ============================================================
+// GIROK — Football / Soccer System v1 (possession + progress)
+// Full-squad (11-a-side) simulation. Every roll is triggered by
+// ANY team member, but WHICH registered character is credited in
+// the description is chosen by the system (weighted-random by
+// position) — never by whoever clicked. GK is hard-locked out of
+// every action except Save.
+// ============================================================
+//
+// CORE LOOP (see comments throughout for the full rules):
+//   - Two modes per match: one team is Attack, the other is Defend.
+//   - Attack team's action is Dribble or Pass. Defend team's
+//     response is Tackle (counters Dribble) or Interception
+//     (counters Pass) — always auto-matched, never a free pick.
+//   - Whichever side rolls FIRST in an exchange gets the real
+//     choice of action; whoever rolls SECOND is auto-locked to
+//     the matching counter-action and just rolls. Either side may
+//     go first. Results are shown immediately as each roll lands
+//     — nothing is ever hidden, because the second mover never had
+//     a decision to make, so there's nothing to react to.
+//   - margin = |rollAttack - rollDefend|. Whoever rolled HIGHER
+//     wins the exchange and banks progress off that margin
+//     (Config_Progress table). A defend win also flips TeamInAttack.
+//   - Progress is BANKED PER TEAM and never resets except the -50
+//     spent the instant a team shoots (goal or miss, doesn't matter).
+//   - At 50+ progress, a team may Shoot (an "open play" shot). A
+//     PENALTY, CORNER KICK, or (non-penalty) FOUL/free kick ALSO
+//     grants an immediate Shoot, free of any progress cost, the
+//     instant that outcome lands — these are genuine extra scoring
+//     chances, not just flavor text, ported over from Dini's earlier
+//     Whitsbury football system. ShootType on the Matches row records
+//     which of the four ('open_play'|'penalty'|'corner'|'freekick')
+//     produced the current shoot trigger, and each has its OWN
+//     Config_Shoot_* description pool (see below) so the narration
+//     matches how the chance was created.
+//   - GK only ever rolls Save, only when the opponent shoots.
+//   - 1 roll = 1 match minute. Half = 45 rolls. Extra time (ties in
+//     knockout matches only) = 15 rolls per ET half. Penalty
+//     shootout mechanic intentionally NOT built yet (Dini's call —
+//     build later).
+//   - Out-of-bounds (throw-in/goal-kick) and open_play are pure
+//     DESCRIPTION buckets carved out of the normal margin ranges
+//     (Config_TackleSucceed/Config_TackleFail) with no extra roll.
+//     CORNER and FOUL/PENALTY are different: they ALSO immediately
+//     grant a Shoot (see above) — so those three buckets, plus a
+//     50+ progress open-play shot, are the four ways a Shoot gets
+//     triggered. The foul-only secondary Card/Injury check
+//     (Config_Incident) still fires only on foul/penalty, same as
+//     before — corner never triggers cards/injury.
+//   - Red card: -20 to the WHOLE TEAM's effective dice cap, stacks
+//     per additional red card, floor 1d40. Injury: -10 to that ONE
+//     player's effective cap, stacks additively with the team's red
+//     card penalty, same floor. Both last the rest of the match.
+//   - Server-side rolling only — the client never sends a roll
+//     value, only a request. Nothing to hardcode/intercept.
+//
+// ============================================================
+// RULES BY MATCH TYPE (MatchType column) — read this before touching
+// submitRoll/submitShoot/checkPvNPCCooldown/checkStaleFootballTurns,
+// since the same functions branch differently per type below.
+//
+//   PvP (human vs human)
+//     - NO cooldown of any kind.
+//     - Either side may roll FIRST for a given exchange and gets the
+//       real choice of action; whoever rolls SECOND is auto-locked
+//       to the matching counter-action.
+//     - A roll that has no answering roll yet is "pending" and
+//       parked on the Matches row (Pending* columns) until the other
+//       side responds.
+//     - If a pending roll sits unanswered 24h+, checkStaleFootballTurns()
+//       auto-fills the missing side with a degraded 1d50 roll (no
+//       position bonus) — see autoFillContest()/autoFillShoot().
+//     - Any registered writer on either team's Roster may submit for
+//       THEIR side; the system alone decides which registered
+//       character gets credited (weighted-random by position) — with
+//       ONE exception: a SAVE roll during an active shot can only be
+//       submitted by the account that IS that side's registered GK
+//       (Roster Username), or a proxy scoped specifically to that GK
+//       character (requireGkOwnerIfSave). Every other action, and
+//       normal team-level access outside of an active shot, is
+//       unaffected. If the GK roster row has no Username at all (NPC/
+//       unassigned keeper), this falls back to ordinary team-level
+//       access instead of locking the team out.
+//
+//   PvNPC (human team vs NPC team)
+//     - 30-MINUTE COOLDOWN per submitting writer, between contest rolls
+//       only (checkPvNPCCooldown) — a shot chance you've already
+//       earned is never blocked by this.
+//     - 5 ROLLS PER WRITER PER CALENDAR DAY (resets 00:00 WIB), counting
+//       contest rolls AND shots together (checkPvNPCDailyCap). This is
+//       per SUBMITTING WRITER, never per credited character — a
+//       character can be credited any number of times if the weighted
+//       pick keeps landing on them, that's intentional and not gated
+//       at all.
+//     - Both limits apply only to PvNPC (and NPCvNPC, see below).
+//     - There is no "first/second mover" wait: the human side submits
+//       one action, and the NPC side is rolled by the system in the
+//       SAME call (resolvePvNPCContest/resolvePvNPCShoot). Nothing is
+//       ever left pending, so the 24h stale-turn fallback never
+//       applies to PvNPC.
+//     - Only a writer registered on the HUMAN side's Roster may
+//       submit (the NPC side can never be the one "submitting").
+//
+//   NPCvNPC (NPC team vs NPC team) — follows PvNPC EXACTLY: same
+//   30-min submitter cooldown, same 5-per-24h submitter cap, same
+//   "one side submits, both sides resolve in the same call" shape,
+//   no pending state, no 24h stale-turn fallback (never applicable).
+//   The ONLY difference from PvNPC: since BOTH sides are NPC-played,
+//   there is no "human side" to gate on — so submission is instead
+//   gated to the admin account only (FOOTBALL_ADMIN_USERNAMES,
+//   currently just 'Seonbi'). Seonbi picks which side's action to
+//   submit (teamSide) for a given roll; the system auto-rolls the
+//   OTHER side the same way it would auto-roll an NPC opponent in a
+//   normal PvNPC match. Nobody else — not even a writer registered on
+//   either team's Roster — may submit a roll for an NPCvNPC match.
+// ============================================================
+// SHEET TABS REQUIRED (setupSheets() creates + pre-fills all of
+// these automatically — nothing to hand-fill except Matches/Roster):
+//
+//   Matches              — one row per match (fill in manually)
+//   Roster               — one row per registered character per match
+//   RollLog              — auto-filled, one row per resolved contest
+//   ShootLog             — auto-filled, one row per shoot attempt
+//   Proxies              — optional: admin accounts that can post as anyone
+//   Config_Progress      — margin -> progress banked
+//   Config_TackleSucceed — margin -> outcome, when DEFEND wins
+//   Config_TackleFail    — margin -> outcome, when ATTACK wins
+//   Config_Shoot_OpenPlay — margin -> outcome/possession/flavor, normal 50+ progress shot
+//   Config_Shoot_Penalty  — same shape, for penalty shots
+//   Config_Shoot_Corner   — same shape, for corner-kick shots
+//   Config_Shoot_FreeKick — same shape, for non-penalty free-kick shots
+//   Config_Incident      — card/injury odds (fires only on foul/penalty)
+//   Config_PositionWeights — weighted-random pick odds per action
+//
+// Each Config_Shoot_* table has columns: MarginMin, MarginMax, Outcome
+// ('goal'|'save'|'offside'), PossessionAfter ('defender'|'shooter' —
+// which side keeps the ball after a miss; 'defender' i.e. the GK's
+// team is the normal default), DescriptionTemplate (flavor text with
+// placeholder tokens filled in at resolve time by fillShootTemplate()):
+//   {pemain}        — the credited shooter
+//   {kiper}         — the credited goalkeeper/saver
+//   {opponent}      — a flavor-only random pick from the defending
+//                     side's non-GK roster (does not affect scoring)
+//   {teammate}      — a flavor-only random pick from the shooting
+//                     side's non-GK, non-shooter roster
+//   {tim_penyerang} — the shooting team's name
+//   {tim_bertahan}  — the defending (GK) team's name
+//
+// All Config_* tables are pre-filled with the numbers agreed on
+// with Dini and are editable any time directly in the Sheet —
+// no redeploy needed, exactly like Archery's Score_Archery table.
+// ============================================================
+//
+// MATCHES COLUMNS (0-indexed in code, 1-indexed in the Sheet):
+// [0]  Code
+// [1]  Sport                'football'
+// [2]  SchoolA
+// [3]  TeamNameA
+// [4]  SchoolB
+// [5]  TeamNameB
+// [6]  Status               'active' | 'halftime' | 'finished'
+// [7]  MatchType            'PvP' | 'PvNPC' | 'NPCvNPC' (see RULES BY
+//                            MATCH TYPE block above — NPCvNPC follows
+//                            PvNPC exactly except who may submit)
+// [8]  Phase                'H1' | 'H2' | 'ET1' | 'ET2' | 'PSO'
+// [9]  HalfMinute            0-45 normal, 0-15 in ET
+// [10] TeamInAttack         'A' | 'B'
+// [11] ProgressA
+// [12] ProgressB
+// [13] ScoreA
+// [14] ScoreB
+// [15] RedCardsA
+// [16] RedCardsB
+// [17] KickoffFirstHalf     'A' | 'B' — who kicked off H1 (so H2's kickoff = the other team)
+// [18] PendingRole          'attack' | 'defend' | ''  (contest parked, waiting on 2nd mover)
+// [19] PendingSide          'A' | 'B' | ''
+// [20] PendingAction        'dribble'|'pass'|'tackle'|'interception'|''
+// [21] PendingRoll
+// [22] PendingCharacter
+// [23] PendingPosition
+// [24] PendingBonus         bool
+// [25] PendingSubmittedBy
+// [26] WaitingSince         ISO timestamp
+// [27] ShootReady           'A' | 'B' | '' — which team currently has a live shoot trigger
+// [28] ShootIsFreeShot      bool — true = free shot (penalty/corner/freekick),
+//                            skips the -50 progress spend; false = open_play shot
+// [29] PendingShootRole     'shoot' | 'save' | ''
+// [30] PendingShootSide
+// [31] PendingShootRoll
+// [32] PendingShootCharacter
+// [33] PendingShootPosition
+// [34] PendingShootBonus
+// [35] PendingShootSubmittedBy
+// [36] ShootWaitingSince
+// [37] Round
+// [38] NextRound
+// [39] Gender
+// [40] DrawAllowed          bool — true = group stage (can end level at 90'); false = knockout (goes to ET/PSO)
+// [41] LastActivity         ISO timestamp — most recent roll of ANY kind, for 24h stale fallback
+// [42] ShootType            'open_play' | 'penalty' | 'corner' | 'freekick' —
+//                            which Config_Shoot_* table the live ShootReady
+//                            trigger (if any) will resolve against
+// [43] KickoffPending       bool — true right after kickoff()/startSecondHalf()/
+//                            startExtraTime(), for exactly one contest roll.
+//                            While true, submitRoll() forces that roll to
+//                            Pass-vs-Interception (no Dribble/Tackle choice
+//                            allowed) — the restart pass hasn't happened yet,
+//                            so nobody can dribble past anyone. Cleared the
+//                            instant that one contest resolves (resolveContest).
+// [44] PendingStyle       the first mover's Pace/Power/Skill pick, stashed
+//                            here until the second mover rolls (same idea as
+//                            PendingAction) — cleared by clearPending().
+// [45] PendingShootStyle  same idea as [44] but for the shoot/save duel —
+//                            the first mover's (shooter's or GK's) style
+//                            pick, stashed until the second mover rolls,
+//                            cleared by clearPendingShoot().
+//
+// ROSTER COLUMNS:
+// [0] MatchCode  [1] TeamSide ('A'|'B')  [2] CharacterName
+// [3] Position ('GK'|'DF'|'MF'|'FW')     [4] IsNPC (bool)
+// [5] Username (forum account allowed to trigger rolls crediting this TEAM —
+//     any registered writer on the team roster may roll for that team;
+//     the system alone decides which character is actually credited)
+// [6] Injured (bool) — set automatically when this character is hit by
+//     the injury check; -10 to their personal effective dice cap
+//
+// ROLLLOG COLUMNS: see appendRollLogRow()
+// SHOOTLOG COLUMNS: see appendShootLogRow()
+// ============================================================
+
+var SHEET_ID = '1_OwxW576ET9y3c116hJLbtRbj8PswDsPFWqLOF3Ohqs';
+
+var POSITIONS = ['GK', 'DF', 'MF', 'FW'];
+var ROLL_MINUTES_PER_HALF = 45;
+var ROLL_MINUTES_PER_ET_HALF = 15;
+var PROGRESS_TO_SHOOT = 50;
+var RED_CARD_PENALTY = 20;
+var INJURY_PENALTY = 10;
+var DICE_FLOOR = 40;
+
+// ============================================================
+// STYLE (RPS layer) — added on top of the existing Dribble/Pass vs
+// Tackle/Interception action choice. BOTH sides now also freely pick
+// one of three play styles, independent of their action and of each
+// other; the style match-up (not the raw roll) decides who wins the
+// exchange:
+//   Pace  beats Power   (a quick player skips past brute strength)
+//   Power beats Skill   (physicality muscles through a technical player)
+//   Skill beats Pace    (close control/technique undoes raw speed)
+// If both sides pick the SAME style, it's a wash — whoever rolled
+// higher wins instead (exactly like before this feature existed).
+// Margin (the roll gap) is UNCHANGED by any of this — it still drives
+// progressForMargin()/tackleFailOutcome()/tackleSucceedOutcome() exactly
+// as before; style only decides WHO those buckets apply to.
+// ============================================================
+var STYLE_TYPES = ['pace', 'power', 'skill'];
+var STYLE_BEATS = { pace: 'power', power: 'skill', skill: 'pace' };
+
+function rpsStyleResult(styleA, styleB) {
+  if (!styleA || !styleB || styleA === styleB) return 'tie';
+  return STYLE_BEATS[styleA] === styleB ? 'attack' : 'defend';
+}
+
+function randomStyle() {
+  return STYLE_TYPES[Math.floor(Math.random() * STYLE_TYPES.length)];
+}
+
+function validateStyle(style) {
+  var s = (style || '').toString().toLowerCase().trim();
+  return STYLE_TYPES.indexOf(s) === -1 ? '' : s;
+}
+
+// Admin accounts. Used for: halftime/ET phase controls (any match type),
+// AND as the only accounts allowed to submit rolls for NPCvNPC matches
+// (since both sides are NPC-played, there's no "human roster" to gate on).
+var FOOTBALL_ADMIN_USERNAMES = ['Seonbi'];
+function isFootballAdmin(username) {
+  return FOOTBALL_ADMIN_USERNAMES.indexOf(username) !== -1;
+}
+
+// Apps Script may reuse the same server instance across requests.
+var FOOTBALL_SS = null;
+function getFootballSpreadsheet() {
+  if (!FOOTBALL_SS) FOOTBALL_SS = SpreadsheetApp.openById(SHEET_ID);
+  return FOOTBALL_SS;
+}
+
+// ============================================================
+// WEB APP HANDLERS
+// ============================================================
+
+// Both handlers funnel through this so a broken/unexpected result from
+// routePost/routeGet (undefined, a value JSON.stringify can't handle,
+// etc.) still comes back as valid JSON instead of an empty or malformed
+// body — that's what makes the frontend's JSON.parse throw and show
+// "Server mengembalikan respons yang tidak valid." An HTML page from
+// Google itself (auth wall, execution timeout, infra error) can still
+// slip past this — that's a deployment/quota issue, not something a
+// try/catch in the script can intercept — but every failure that
+// originates in OUR code now always yields parseable JSON.
+function safeJsonOutput(result) {
+  if (result === undefined || result === null) {
+    result = { error: 'Aksi tidak mengembalikan hasil apa pun (bug internal). Coba lagi.' };
+  }
+  var json;
+  try {
+    json = JSON.stringify(result);
+  } catch (stringifyErr) {
+    json = JSON.stringify({ error: 'Gagal membentuk respons JSON: ' + stringifyErr.toString() });
+  }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var result = routePost(data);
+    return safeJsonOutput(result);
+  } catch (err) {
+    return safeJsonOutput({ error: err.toString() });
+  }
+}
+
+function doGet(e) {
+  try {
+    var result = routeGet(e.parameter);
+    return safeJsonOutput(result);
+  } catch (err) {
+    return safeJsonOutput({ error: err.toString() });
+  }
+}
+
+function routePost(data) {
+  if (data.action === 'kickoff')      return kickoff(data);
+  if (data.action === 'submitRoll')   return submitRoll(data);
+  if (data.action === 'submitShoot')  return submitShoot(data);
+  if (data.action === 'startSecondHalf') return startSecondHalf(data);
+  if (data.action === 'startExtraTime')  return startExtraTime(data);
+  return { error: 'Unknown action: ' + data.action };
+}
+
+function routeGet(params) {
+  if (params.action === 'getScore')      return getScore(params.matchCode);
+  if (params.action === 'getMatches')    return getActiveMatches();
+  if (params.action === 'getAllMatches') return getAllMatches();
+  if (params.action === 'getRollLog')    return getRollLog(params.matchCode, parseInt(params.limit) || 200);
+  if (params.action === 'getShootLog')   return getShootLog(params.matchCode, parseInt(params.limit) || 100);
+  if (params.action === 'getRoster')     return getRoster(params.matchCode);
+  if (params.action === 'checkAccess')   return checkFootballAccess(params);
+  return { error: 'Unknown action: ' + params.action };
+}
+
+// ============================================================
+// MATCH / ROSTER LOOKUP
+// ============================================================
+
+function findMatch(matchCode) {
+  var ms = getFootballSpreadsheet().getSheetByName('Matches');
+  var rows = ms.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] === matchCode) return { row: i + 1, data: rows[i], sheet: ms };
+  }
+  return null;
+}
+
+function getRosterRows(matchCode) {
+  var rs = getFootballSpreadsheet().getSheetByName('Roster');
+  var rows = rs.getDataRange().getValues();
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] === matchCode) {
+      out.push({ row: i + 1, data: rows[i] });
+    }
+  }
+  return out;
+}
+
+function getRoster(matchCode) {
+  var rows = getRosterRows(matchCode);
+  var list = rows.map(function (r) {
+    return {
+      teamSide: r.data[1], characterName: r.data[2], position: r.data[3],
+      isNPC: !!r.data[4], username: r.data[5] || '', injured: !!r.data[6]
+    };
+  });
+  return { roster: list };
+}
+
+function getActiveMatches() {
+  var rows = getFootballSpreadsheet().getSheetByName('Matches').getDataRange().getValues();
+  var list = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r[0] || r[6] === 'finished') continue;
+    list.push({
+      code: r[0], schoolA: r[2], teamNameA: r[3], schoolB: r[4], teamNameB: r[5],
+      status: r[6], matchType: r[7], phase: r[8], halfMinute: r[9],
+      teamInAttack: r[10], progressA: r[11] || 0, progressB: r[12] || 0,
+      scoreA: r[13] || 0, scoreB: r[14] || 0, round: r[37] || ''
+    });
+  }
+  return { matches: list };
+}
+
+function getAllMatches() {
+  var rows = getFootballSpreadsheet().getSheetByName('Matches').getDataRange().getValues();
+  var list = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r[0]) continue;
+    list.push({
+      code: r[0], schoolA: r[2], teamNameA: r[3], schoolB: r[4], teamNameB: r[5],
+      status: r[6], matchType: r[7], phase: r[8], halfMinute: r[9],
+      teamInAttack: r[10], progressA: r[11] || 0, progressB: r[12] || 0,
+      scoreA: r[13] || 0, scoreB: r[14] || 0,
+      redCardsA: r[15] || 0, redCardsB: r[16] || 0,
+      round: r[37] || '', nextRound: r[38] || '', gender: r[39] || '',
+      drawAllowed: !!r[40]
+    });
+  }
+  return { matches: list };
+}
+
+function getScore(matchCode) {
+  var found = findMatch(matchCode);
+  if (!found) return { error: 'Match tidak ditemukan.' };
+  var m = found.data;
+  var matchType = m[7] || 'PvP';
+  // For PvNPC only: tell the frontend which side is the human side, so
+  // the Match Form can skip asking "kamu bermain untuk tim mana" — in
+  // PvNPC there's only ever one possible answer. Not meaningful for PvP
+  // (both sides are human) or NPCvNPC (admin controls both), so left
+  // blank there.
+  var humanSide = '';
+  if (matchType === 'PvNPC') {
+    humanSide = isSideAllNPC(matchCode, 'A') ? 'B' : (isSideAllNPC(matchCode, 'B') ? 'A' : '');
+  }
+  return {
+    matchCode: m[0], schoolA: m[2], teamNameA: m[3], schoolB: m[4], teamNameB: m[5],
+    status: m[6], matchType: matchType, phase: m[8], halfMinute: m[9],
+    teamInAttack: m[10], progressA: m[11] || 0, progressB: m[12] || 0,
+    scoreA: m[13] || 0, scoreB: m[14] || 0,
+    redCardsA: m[15] || 0, redCardsB: m[16] || 0,
+    kickoffFirstHalf: m[17] || '',
+    pendingRole: m[18] || '', pendingSide: m[19] || '', pendingAction: m[20] || '',
+    shootReady: m[27] || '', shootIsFreeShot: !!m[28], shootType: m[42] || '',
+    pendingShootRole: m[29] || '', pendingShootSide: m[30] || '',
+    round: m[37] || '', nextRound: m[38] || '', gender: m[39] || '',
+    drawAllowed: !!m[40], humanSide: humanSide, kickoffPending: !!m[43]
+  };
+}
+
+function getRollLog(matchCode, limit) {
+  var rows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
+  var list = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][1] !== matchCode) continue;
+    var ts = rows[i][0];
+    list.push({
+      postedAt: ts instanceof Date ? Utilities.formatDate(ts, 'Asia/Jakarta', 'd MMM yyyy, HH:mm') : '',
+      submittedBy: rows[i][2], phase: rows[i][3], minute: rows[i][4],
+      actionAttack: rows[i][5], actionDefend: rows[i][6],
+      attackSide: rows[i][7], rollAttack: rows[i][8], characterAttack: rows[i][9],
+      positionAttack: rows[i][10], bonusAttack: !!rows[i][11],
+      defendSide: rows[i][12], rollDefend: rows[i][13], characterDefend: rows[i][14],
+      positionDefend: rows[i][15], bonusDefend: !!rows[i][16],
+      margin: rows[i][17], winner: rows[i][18],
+      progressGained: rows[i][19], teamProgressed: rows[i][20],
+      outcome: rows[i][21], newTeamInAttack: rows[i][22],
+      cardTier: rows[i][23] || '', cardSide: rows[i][24] || '', cardCharacter: rows[i][25] || '',
+      injuryOccurred: !!rows[i][26], injuredCharacter: rows[i][27] || '',
+      icLine: rows[i][28] || '', autoResolved: !!rows[i][29], rollId: rows[i][30] || '',
+      styleAttack: rows[i][31] || '', styleDefend: rows[i][32] || '', rpsResult: rows[i][33] || ''
+    });
+  }
+  list.reverse();
+  return { rolls: list.slice(0, limit) };
+}
+
+function getShootLog(matchCode, limit) {
+  var rows = getFootballSpreadsheet().getSheetByName('ShootLog').getDataRange().getValues();
+  var list = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][1] !== matchCode) continue;
+    var ts = rows[i][0];
+    list.push({
+      postedAt: ts instanceof Date ? Utilities.formatDate(ts, 'Asia/Jakarta', 'd MMM yyyy, HH:mm') : '',
+      submittedBy: rows[i][2], phase: rows[i][3], minute: rows[i][4],
+      shootSide: rows[i][5], shootType: rows[i][6] || 'open_play',
+      rollShoot: rows[i][7], characterShoot: rows[i][8], positionShoot: rows[i][9], bonusShoot: !!rows[i][10],
+      rollSave: rows[i][11], characterSave: rows[i][12],
+      margin: rows[i][13], outcome: rows[i][14], flavorText: rows[i][15] || '',
+      scoreAAfter: rows[i][16], scoreBAfter: rows[i][17],
+      icLine: rows[i][18] || '', autoResolved: !!rows[i][19], shootId: rows[i][20] || '',
+      styleShoot: rows[i][21] || '', styleSave: rows[i][22] || '', rpsResult: rows[i][23] || ''
+    });
+  }
+  list.reverse();
+  return { shots: list.slice(0, limit) };
+}
+
+// ============================================================
+// PROXY / ACCESS CHECK
+// Access is TEAM-level, not character-level: any writer registered
+// anywhere on a team's Roster for this match may trigger a roll for
+// that team. WHICH character gets credited is always the system's
+// weighted-random pick — never the submitter's choice — so there's
+// no godmodding risk in letting any teammate click.
+//
+// Proxies sheet: AccountUsername | CanPostAs.
+//   CanPostAs = '*'            → that account may submit for ANY side,
+//                                 in any match (full universal proxy).
+//   CanPostAs = a character name → SCOPED: that account may submit
+//                                 only for whichever TEAM SIDE that
+//                                 named character is registered on, in
+//                                 THIS match (looked up from Roster).
+//                                 If the named character isn't on this
+//                                 match's Roster at all, the proxy
+//                                 grants nothing here.
+// This is how one writer who owns several characters — each on its
+// own separate forum account — can roll for a character's team while
+// logged into a different one of their own accounts, without
+// widening their access to every match on the board.
+// ============================================================
+
+function isProxyAllowed(submitter, matchCode, side) {
+  var sheet = getFootballSpreadsheet().getSheetByName('Proxies');
+  if (!sheet) return false;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] !== submitter) continue;
+    var canPostAs = (rows[i][1] || '').toString().trim();
+    if (canPostAs === '*') return true;
+    if (canPostAs && matchCode && side) {
+      var roster = getRosterRows(matchCode);
+      for (var j = 0; j < roster.length; j++) {
+        if (roster[j].data[2] === canPostAs && roster[j].data[1] === side) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Narrower than isProxyAllowed: true only if the submitter is either a
+// universal ('*') proxy, or is scoped SPECIFICALLY to the named
+// character — not just to some other character on the same side. Used
+// by the goalkeeper lock, where "can post for this side" isn't enough:
+// it has to be a proxy for the keeper themselves.
+function isProxyAllowedForCharacter(submitter, characterName) {
+  if (!characterName) return false;
+  var sheet = getFootballSpreadsheet().getSheetByName('Proxies');
+  if (!sheet) return false;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] !== submitter) continue;
+    var canPostAs = (rows[i][1] || '').toString().trim();
+    if (canPostAs === '*' || canPostAs === characterName) return true;
+  }
+  return false;
+}
+
+function canSubmitForSide(loggedInUsername, matchCode, side) {
+  if (isFootballAdmin(loggedInUsername) || isProxyAllowed(loggedInUsername, matchCode, side)) return true;
+  var roster = getRosterRows(matchCode);
+  for (var i = 0; i < roster.length; i++) {
+    var r = roster[i].data;
+    if (r[1] === side && r[5] === loggedInUsername) return true;
+  }
+  return false;
+}
+
+// ============================================================
+// CHARACTER-DRIVEN ACCESS — replaces the old "pick your team side"
+// picker. The player now names WHICH registered character they're
+// rolling as (Nama Karakter); the server looks that character up on
+// the Roster, decides which side they belong to from that, and
+// validates ownership from there — an account can roll as a
+// character only if it's logged in AS that character's own Username,
+// or is a Proxies-sheet proxy scoped to that exact character (or is
+// an admin, who can act as anyone, including NPCs — needed so Seonbi
+// can name a specific NPC to submit for in NPCvNPC).
+// This also fixes the old side-only proxy check, which only knew
+// "can this account touch side A/B at all" and had no way to tell
+// WHICH of possibly several proxied characters was actually rolling.
+// ============================================================
+
+function findRosterCharacter(matchCode, characterName) {
+  var name = (characterName || '').toString().trim();
+  if (!name) return null;
+  var roster = getRosterRows(matchCode);
+  for (var i = 0; i < roster.length; i++) {
+    var r = roster[i].data;
+    if ((r[2] || '').toString().trim() === name) {
+      return {
+        side: r[1], characterName: r[2], position: r[3],
+        isNPC: !!r[4], username: (r[5] || '').toString().trim(), injured: !!r[6]
+      };
+    }
+  }
+  return null;
+}
+
+function resolveCharacterAccess(loggedInUsername, matchCode, characterName, matchType) {
+  var row = findRosterCharacter(matchCode, characterName);
+  if (!row) return { allowed: false, error: 'Karakter tidak terdaftar di pertandingan ini.' };
+  // Admin's bypass is ONLY for NPC characters — that's the entire reason
+  // it exists. For a real player character, admin gets NO special
+  // access: they still need to be that character's registered Username
+  // or a valid proxy for them, exactly like anyone else. Otherwise the
+  // admin account becomes a universal proxy for every human character
+  // in every match, which defeats the whole point of gating who's
+  // allowed to roll for whom.
+  if (row.isNPC) {
+    if (!isFootballAdmin(loggedInUsername)) {
+      return { allowed: false, error: 'Karakter ini NPC — hanya admin yang bisa roll untuk NPC.' };
+    }
+    // In PvNPC specifically, the fully-NPC "opposing school" side is
+    // ALWAYS auto-resolved by the system inside the human's own
+    // submission (resolvePvNPCContest/resolvePvNPCShoot) — there's no
+    // manual roll to make for it, so admin can't select a character
+    // from that side here. Admin CAN roll for an NPC that sits on P's
+    // OWN team (a background teammate with no writer) — that side isn't
+    // "all NPC", it's a mixed roster. NPCvNPC has no such restriction:
+    // there every character on both sides is NPC by definition, and
+    // admin is expected to control all of them (already gated to
+    // admin-only by the NPCvNPC match-type check at the call sites).
+    if (matchType === 'PvNPC' && isSideAllNPC(matchCode, row.side)) {
+      return { allowed: false, error: 'NPC dari sekolah lawan di match PvNPC diselesaikan otomatis oleh sistem, tidak bisa di-roll manual.' };
+    }
+    return { allowed: true, side: row.side, isNPC: true };
+  }
+  if (row.username && loggedInUsername === row.username) return { allowed: true, side: row.side, isNPC: false };
+  if (isProxyAllowedForCharacter(loggedInUsername, row.characterName)) return { allowed: true, side: row.side, isNPC: false };
+  return { allowed: false, error: 'Kamu tidak memiliki akses untuk roll sebagai karakter ini.' };
+}
+
+// Full access check for a submission attempt, folding in the same
+// matchType-specific gating submitRoll/submitShoot/kickoff apply, plus
+// a cooldown/daily-cap preview — used by the new GET checkAccess
+// endpoint so the frontend can reject BEFORE starting the roll
+// animation, instead of after.
+function checkFootballAccess(params) {
+  var found = findMatch(params.matchCode);
+  if (!found) return { allowed: false, error: 'Match tidak ditemukan.' };
+  if (found.data[6] === 'finished') return { allowed: false, error: 'Match sudah selesai.' };
+  if (!params.loggedInUsername) return { allowed: false, error: 'Akun tidak terdeteksi. Coba muat ulang halaman.' };
+
+  var m = found.data;
+  var matchType = (m[7] || 'PvP').toString().trim();
+  var access = resolveCharacterAccess(params.loggedInUsername, params.matchCode, params.characterName, matchType);
+  if (!access.allowed) return { allowed: false, error: access.error };
+
+  if (matchType === 'NPCvNPC' && !isFootballAdmin(params.loggedInUsername)) {
+    return { allowed: false, error: 'Match NPC vs NPC hanya bisa di-roll oleh admin.' };
+  }
+  if (matchType === 'PvNPC') {
+    var humanSide = isSideAllNPC(params.matchCode, 'A') ? 'B' : (isSideAllNPC(params.matchCode, 'B') ? 'A' : '');
+    if (access.side !== humanSide) {
+      return { allowed: false, error: 'Karakter ini dikendalikan NPC secara otomatis di match PvNPC.' };
+    }
+  }
+  if (matchType !== 'PvP') {
+    var cd = checkPvNPCCooldown(params.matchCode, params.characterName);
+    if (cd.blocked) return { allowed: false, error: cd.error };
+    var dc = checkPvNPCDailyCap(params.matchCode, params.characterName);
+    if (dc.blocked) return { allowed: false, error: dc.error };
+  }
+  return { allowed: true, side: access.side, matchType: matchType };
+}
+
+// ============================================================
+// GOALKEEPER-OWNER LOCK (saves only)
+// A save roll decides a goal vs. no-goal, so it's gated tighter than
+// every other action: a Save may only ever be submitted AS the side's
+// actually-registered GK character (roster Position === 'GK'). Every
+// other action — including a team's OWN shoot roll, and normal
+// team-level access outside of an active shot — is untouched and
+// still open to any teammate, same as before.
+//
+// This is a CHARACTER-identity check, separate from the ACCOUNT
+// check resolveCharacterAccess already ran (is loggedInUsername
+// allowed to act as characterName at all — by ownership, proxy, or
+// the admin's NPC bypass). Being allowed to embody a character does
+// not make that character the GK: this always requires characterName
+// to literally be the side's registered GK, for admin and ordinary
+// players alike — there is no bypass, including when the GK has no
+// roster Username (NPC/unassigned keeper). Only when the side has NO
+// GK registered at all is there nothing to lock to.
+// ============================================================
+
+function gkOwnerInfo(matchCode, side) {
+  var roster = getRosterRows(matchCode);
+  for (var i = 0; i < roster.length; i++) {
+    var r = roster[i].data;
+    if (r[1] === side && r[3] === 'GK') {
+      return { username: (r[5] || '').toString().trim(), characterName: r[2] || '' };
+    }
+  }
+  return { username: '', characterName: '' };
+}
+
+function requireGkOwnerIfSave(loggedInUsername, matchCode, side, role, characterName) {
+  if (role !== 'save') return { ok: true };
+  var gk = gkOwnerInfo(matchCode, side);
+  if (!gk.characterName) return { ok: true }; // no GK registered on this side — nothing to lock to
+  if ((characterName || '').toString().trim() === gk.characterName) return { ok: true };
+  return { ok: false, error: 'Hanya ' + gk.characterName + ' (kiper tim ini) yang bisa roll Save.' };
+}
+
+function isSideAllNPC(matchCode, side) {
+  var roster = getRosterRows(matchCode);
+  var any = false;
+  for (var i = 0; i < roster.length; i++) {
+    var r = roster[i].data;
+    if (r[1] === side) { any = true; if (!r[4]) return false; }
+  }
+  return any;
+}
+
+// ============================================================
+// COOLDOWN + DAILY CAP — PvNPC AND NPCvNPC only (identical rule for
+// both).
+//   - 30-min cooldown between CONTEST rolls (dribble/pass/tackle/
+//     interception) for the same CHARACTER on the same match — keyed
+//     off the character named in "Nama Karakter" (RollLog/ShootLog's
+//     SubmittedBy column now holds that character's name, NOT the
+//     submitting account — see below). So one writer who's eligible to
+//     roll for several characters (an account-holder plus their
+//     proxied characters) can roll for each of them back-to-back; it's
+//     only rolling for the SAME character again that has to wait out
+//     the 30 minutes. Does NOT apply to Shoot/Save — you shouldn't
+//     have to wait out an unrelated cooldown just to take a shot
+//     chance your team already earned. Checked in submitRoll only
+//     (checkPvNPCCooldown).
+//   - 5 rolls per CHARACTER per match per CALENDAR DAY (resets at
+//     00:00 WIB/Asia-Jakarta, matching the timestamps already shown
+//     elsewhere in this system), counting BOTH contest rolls and
+//     shoot/save attempts together — same SubmittedBy key as the
+//     cooldown above, NOT the submitting account. So a writer rolling
+//     for several characters gets 5 rolls/day for EACH of them, not 5
+//     shared across all of them. Checked in both submitRoll and
+//     submitShoot (checkPvNPCDailyCap).
+// NOTE: RollLog/ShootLog's "SubmittedBy" column records the CHARACTER
+// that was rolled as (data.characterName) for every real submission —
+// not the forum account that clicked. The account itself is never
+// logged here; it only matters at submit-time for the access check
+// (resolveCharacterAccess). The one exception is the 24h stale-turn
+// auto-resolve, which has no submitting character at all and is
+// labeled 'Girok (auto)' instead.
+// For NPCvNPC the "submitting writer" is always the admin account, and
+// the "character" is whichever NPC Seonbi named — so both limits still
+// rate-limit per NPC character even when the account is the same.
+// PvP has NEITHER limit; it's governed instead by the 24h stale-turn
+// fallback (checkStaleFootballTurns), which never applies to
+// PvNPC/NPCvNPC since those never leave a roll pending.
+// ============================================================
+
+function checkPvNPCCooldown(matchCode, characterName) {
+  var rows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
+  var lastTs = null;
+  for (var i = rows.length - 1; i >= 1; i--) {
+    if (rows[i][1] === matchCode && rows[i][2] === characterName) { lastTs = rows[i][0]; break; }
+  }
+  if (!lastTs) return { blocked: false };
+  var elapsedMs = Date.now() - lastTs.getTime();
+  var remainMin = Math.ceil((30 * 60 * 1000 - elapsedMs) / 60000);
+  if (remainMin > 0) {
+    return { blocked: true, error: 'Tunggu ' + remainMin + ' menit lagi sebelum karakter ini bisa roll lagi.' };
+  }
+  return { blocked: false };
+}
+
+function checkPvNPCDailyCap(matchCode, characterName) {
+  var todayKey = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+  var count = 0;
+
+  var rollRows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
+  for (var i = 1; i < rollRows.length; i++) {
+    if (rollRows[i][1] === matchCode && rollRows[i][2] === characterName && rollRows[i][0] instanceof Date &&
+        Utilities.formatDate(rollRows[i][0], 'Asia/Jakarta', 'yyyy-MM-dd') === todayKey) count++;
+  }
+  var shootRows = getFootballSpreadsheet().getSheetByName('ShootLog').getDataRange().getValues();
+  for (var j = 1; j < shootRows.length; j++) {
+    if (shootRows[j][1] === matchCode && shootRows[j][2] === characterName && shootRows[j][0] instanceof Date &&
+        Utilities.formatDate(shootRows[j][0], 'Asia/Jakarta', 'yyyy-MM-dd') === todayKey) count++;
+  }
+
+  if (count >= 5) {
+    return { blocked: true, error: 'Karakter ini sudah roll 5 kali untuk match ini hari ini. Coba lagi setelah jam 00:00 WIB.' };
+  }
+  return { blocked: false };
+}
+
+// ============================================================
+// CONFIG TABLE READERS (cached per execution) — all editable
+// live in the Sheet, no redeploy needed.
+// ============================================================
+
+var _cfgCache = {};
+
+function readConfigTable(sheetName) {
+  if (_cfgCache[sheetName]) return _cfgCache[sheetName];
+  var sheet = getFootballSpreadsheet().getSheetByName(sheetName);
+  var rows = sheet.getDataRange().getValues();
+  rows.shift(); // header
+  _cfgCache[sheetName] = rows;
+  return rows;
+}
+
+function marginBucketLookup(sheetName, margin) {
+  var rows = readConfigTable(sheetName);
+  for (var i = 0; i < rows.length; i++) {
+    var lo = parseInt(rows[i][0]), hi = parseInt(rows[i][1]);
+    if (margin >= lo && margin <= hi) return rows[i][2];
+  }
+  return rows.length ? rows[rows.length - 1][2] : '';
+}
+
+function progressForMargin(margin) {
+  var v = marginBucketLookup('Config_Progress', margin);
+  return parseInt(v) || 0;
+}
+
+function tackleSucceedOutcome(margin) { return marginBucketLookup('Config_TackleSucceed', margin) || 'open_play'; }
+function tackleFailOutcome(margin)    { return marginBucketLookup('Config_TackleFail', margin) || 'open_play'; }
+
+// ============================================================
+// SHOOT DESCRIPTION LOOKUP — one Config_Shoot_* table per ShootType,
+// each with 4 columns: MarginMin, MarginMax, Outcome, PossessionAfter,
+// DescriptionTemplate. See the SHEET TABS REQUIRED comment at the top
+// for the full column meaning.
+// ============================================================
+
+var SHOOT_CONFIG_SHEETS = {
+  open_play: 'Config_Shoot_OpenPlay',
+  penalty: 'Config_Shoot_Penalty',
+  corner: 'Config_Shoot_Corner',
+  freekick: 'Config_Shoot_FreeKick'
+};
+
+// Each sheet holds BOTH the success (shooter wins) and fail (GK wins) rows,
+// tagged by the Result column, each spanning margin 1-99 independently —
+// so a shooter-wins margin of 40 and a GK-wins margin of 40 look up
+// different rows. Columns: Result('success'|'fail'), MarginMin, MarginMax,
+// Outcome('goal'|'save'|'offside'), PossessionAfter('defender'|'shooter'),
+// DescriptionTemplate.
+function shootBucketLookup(shootType, result, margin) {
+  var sheetName = SHOOT_CONFIG_SHEETS[shootType] || SHOOT_CONFIG_SHEETS.open_play;
+  var rows = readConfigTable(sheetName).filter(function (r) { return (r[0] || '').toString() === result; });
+  var pick = null;
+  for (var i = 0; i < rows.length; i++) {
+    var lo = parseInt(rows[i][1]), hi = parseInt(rows[i][2]);
+    if (margin >= lo && margin <= hi) { pick = rows[i]; break; }
+  }
+  if (!pick && rows.length) pick = rows[rows.length - 1];
+  if (!pick) {
+    return result === 'success'
+      ? { outcome: 'goal', possessionAfter: 'defender', template: '' }
+      : { outcome: 'save', possessionAfter: 'defender', template: '' };
+  }
+  return {
+    outcome: (pick[3] || (result === 'success' ? 'goal' : 'save')).toString(),
+    possessionAfter: (pick[4] || 'defender').toString(),
+    template: (pick[5] || '').toString()
+  };
+}
+
+// Fills {pemain}/{kiper}/{opponent}/{teammate}/{tim_penyerang}/{tim_bertahan}
+// tokens in a DescriptionTemplate. {opponent}/{teammate} are flavor-only
+// random picks (don't affect scoring/credit) so re-rolling the same
+// template twice can name a different bystander each time.
+function fillShootTemplate(template, ctx) {
+  if (!template) return '';
+  var opponentPick = pickFlavorCharacter(ctx.matchCode, ctx.gkSide, [ctx.saveCharacter]);
+  var teammatePick = pickFlavorCharacter(ctx.matchCode, ctx.shootSide, [ctx.shootCharacter]);
+  return template
+    .split('{pemain}').join(ctx.shootCharacter)
+    .split('{kiper}').join(ctx.saveCharacter)
+    .split('{opponent}').join(opponentPick)
+    .split('{teammate}').join(teammatePick)
+    .split('{tim_penyerang}').join(ctx.shootTeamName)
+    .split('{tim_bertahan}').join(ctx.gkTeamName);
+}
+
+// Random (uniform, non-weighted — this is flavor text only, not credit/
+// scoring) pick of a non-GK roster member on `side`, excluding names in
+// `excludeNames`. Falls back to a generic phrase if the roster is empty.
+function pickFlavorCharacter(matchCode, side, excludeNames) {
+  var roster = getRosterRows(matchCode).filter(function (r) {
+    return r.data[1] === side && r.data[3] !== 'GK' && excludeNames.indexOf(r.data[2]) === -1;
+  });
+  if (!roster.length) return 'pemain lawan';
+  var pick = roster[Math.floor(Math.random() * roster.length)];
+  return pick.data[2];
+}
+
+function readIncidentConfig() {
+  if (_cfgCache._incident) return _cfgCache._incident;
+  var sheet = getFootballSpreadsheet().getSheetByName('Config_Incident');
+  var row = sheet.getRange(2, 1, 1, 4).getValues()[0];
+  var cfg = {
+    chanceYellow: parseFloat(row[0]) || 0.12,
+    chanceRed: parseFloat(row[1]) || 0.03,
+    chanceInjury: parseFloat(row[2]) || 0.08
+  };
+  _cfgCache._incident = cfg;
+  return cfg;
+}
+
+function readPositionWeights(action) {
+  var rows = readConfigTable('Config_PositionWeights');
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i][0] === action) {
+      return { GK: parseInt(rows[i][1]) || 0, DF: parseInt(rows[i][2]) || 0, MF: parseInt(rows[i][3]) || 0, FW: parseInt(rows[i][4]) || 0 };
+    }
+  }
+  return { GK: 0, DF: 34, MF: 33, FW: 33 };
+}
+
+// ============================================================
+// WEIGHTED CHARACTER PICK — GK is hard-excluded from anything but
+// 'save'. Injured characters stay eligible (dice-only penalty, per
+// Dini's call — pick weight does not change).
+// ============================================================
+
+function pickWeightedCharacter(matchCode, side, action) {
+  var roster = getRosterRows(matchCode).filter(function (r) { return r.data[1] === side; });
+  if (action === 'save') {
+    var gk = roster.filter(function (r) { return r.data[3] === 'GK'; });
+    if (!gk.length) return null;
+    return { name: gk[0].data[2], position: 'GK', isNPC: !!gk[0].data[4], injured: !!gk[0].data[6] };
+  }
+
+  var eligible = roster.filter(function (r) { return r.data[3] !== 'GK'; });
+  if (!eligible.length) return null;
+
+  var weights = readPositionWeights(action);
+  var pool = [];
+  eligible.forEach(function (r) {
+    var pos = r.data[3];
+    var w = weights[pos] || 0;
+    if (w > 0) pool.push({ r: r, w: w });
+  });
+  if (!pool.length) pool = eligible.map(function (r) { return { r: r, w: 1 }; }); // fallback: uniform
+
+  var totalWeight = pool.reduce(function (s, p) { return s + p.w; }, 0);
+  var roll = Math.random() * totalWeight;
+  var acc = 0;
+  for (var i = 0; i < pool.length; i++) {
+    acc += pool[i].w;
+    if (roll <= acc) {
+      var d = pool[i].r.data;
+      return { name: d[2], position: d[3], isNPC: !!d[4], injured: !!d[6] };
+    }
+  }
+  var last = pool[pool.length - 1].r.data;
+  return { name: last[2], position: last[3], isNPC: !!last[4], injured: !!last[6] };
+}
+
+function positionGetsBonus(position, action) {
+  return (action === 'tackle' && position === 'DF') ||
+         (action === 'interception' && position === 'MF') ||
+         (action === 'shoot' && position === 'FW');
+}
+
+// ============================================================
+// ROLLING — server-side only. Effective cap = 100, -20 per team
+// red card, -10 if the credited character is personally injured,
+// floor 1d40 after stacking both. Position bonus is a flat +10
+// AFTER the capped roll, capped back up to 100 (bonus reflects
+// skill, not team penalty, so it isn't capped by the reduced max).
+// ============================================================
+
+function effectiveDiceMax(redCards, injured) {
+  var max = 100 - (RED_CARD_PENALTY * (redCards || 0)) - (injured ? INJURY_PENALTY : 0);
+  return Math.max(DICE_FLOOR, max);
+}
+
+function rollForCharacter(redCards, character, action) {
+  var max = effectiveDiceMax(redCards, character.injured);
+  var roll = Math.floor(Math.random() * max) + 1;
+  var bonus = positionGetsBonus(character.position, action);
+  if (bonus) roll = Math.min(100, roll + 10);
+  return { roll: roll, bonus: bonus, max: max };
+}
+
+// ============================================================
+// KICKOFF
+// ============================================================
+
+function kickoff(data) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { error: 'Sistem sedang sibuk, coba sebentar lagi.' };
+  try {
+    var found = findMatch(data.matchCode);
+    if (!found) return { error: 'Match tidak ditemukan.' };
+    var m = found.data;
+    if (m[6] !== 'active' && m[6] !== '') return { error: 'Match sudah dimulai atau sudah selesai.' };
+    if (m[10]) return { error: 'Kick off sudah dilakukan.' };
+
+    if (!data.loggedInUsername) return { error: 'Gagal mendeteksi akun. Coba refresh halaman.' };
+    // NPCvNPC: kickoff is admin-only too, same reasoning as every other
+    // submit for this match type (both sides are NPC, no human roster to
+    // gate on) — resolveCharacterAccess would already deny a non-admin
+    // naming any character here (they'd all be NPC), but this makes the
+    // rule explicit rather than incidental.
+    if ((m[7] || 'PvP') === 'NPCvNPC' && !isFootballAdmin(data.loggedInUsername)) {
+      return { error: 'Match NPC vs NPC hanya bisa dimulai oleh admin.' };
+    }
+    var access = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, m[7] || 'PvP');
+    if (!access.allowed) return { error: access.error };
+    var teamSide = access.side;
+
+    found.sheet.getRange(found.row, 7, 1, 4).setValues([['active', m[7] || 'PvP', 'H1', 0]]); // Status, MatchType, Phase, HalfMinute
+    found.sheet.getRange(found.row, 11).setValue(teamSide); // TeamInAttack
+    found.sheet.getRange(found.row, 18).setValue(teamSide); // KickoffFirstHalf
+    found.sheet.getRange(found.row, 42).setValue(new Date().toISOString()); // LastActivity
+    found.sheet.getRange(found.row, 44).setValue(true); // KickoffPending
+
+    return { success: true, teamInAttack: teamSide, phase: 'H1', halfMinute: 0 };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ============================================================
+// SUBMIT ROLL — one call = one side's contribution to a contest.
+// First mover picks their action and rolls; second mover is
+// auto-locked to the matching counter-action and rolls. The
+// moment both exist, the contest resolves.
+// ============================================================
+
+function submitRoll(data) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { error: 'Sistem sedang sibuk, coba sebentar lagi.' };
+  try {
+    var found = findMatch(data.matchCode);
+    if (!found) return { error: 'Match tidak ditemukan.' };
+    var m = found.data;
+    if (m[6] === 'finished') return { error: 'Match sudah selesai.' };
+    if (m[6] === 'halftime') return { error: 'Sedang halftime — mulai babak berikutnya dulu.' };
+    if (!m[10]) return { error: 'Belum kick off.' };
+    if (m[27]) return { error: 'Ada tembakan (shoot) yang harus diselesaikan dulu sebelum lanjut open play.' };
+
+    if (!data.loggedInUsername) return { error: 'Gagal mendeteksi akun. Coba refresh halaman.' };
+
+    var attackSide = m[10];
+    var defendSide = attackSide === 'A' ? 'B' : 'A';
+    var matchType = m[7] || 'PvP';
+
+    var myStyle = validateStyle(data.styleType);
+    if (!myStyle) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
+
+    // NPCvNPC: gate to admin only, BEFORE resolving the named character
+    // (which would never pass for a non-admin anyway, since every
+    // character in an NPCvNPC match is NPC) — see RULES BY MATCH TYPE at
+    // the top of this file.
+    if (matchType === 'NPCvNPC') {
+      if (!isFootballAdmin(data.loggedInUsername)) {
+        return { error: 'Match NPC vs NPC hanya bisa di-roll oleh admin.' };
+      }
+      var accessNvN = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, matchType);
+      if (!accessNvN.allowed) return { error: accessNvN.error };
+      var cooldownNvN = checkPvNPCCooldown(data.matchCode, data.characterName);
+      if (cooldownNvN.blocked) return cooldownNvN;
+      var dailyCapNvN = checkPvNPCDailyCap(data.matchCode, data.characterName);
+      if (dailyCapNvN.blocked) return dailyCapNvN;
+      // Admin's named character decides which side's action to submit;
+      // the OTHER side is auto-rolled by the system in the same call —
+      // identical shape to PvNPC's human-submits/NPC-auto-resolves flow,
+      // just with both "submitting" and "auto-resolved" sides NPC-played.
+      return resolvePvNPCContest(found, data, attackSide, defendSide, accessNvN.side, myStyle);
+    }
+
+    var access = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, matchType);
+    if (!access.allowed) return { error: access.error };
+    var teamSide = access.side;
+
+    if (matchType === 'PvNPC') {
+      var cooldown = checkPvNPCCooldown(data.matchCode, data.characterName);
+      if (cooldown.blocked) return cooldown;
+      var dailyCap = checkPvNPCDailyCap(data.matchCode, data.characterName);
+      if (dailyCap.blocked) return dailyCap;
+      // In PvNPC the human side is always the one submitting; the NPC side
+      // resolves automatically in the same call, mirroring Archery/Fencing.
+      var humanSide = isSideAllNPC(data.matchCode, attackSide) ? defendSide : attackSide;
+      if (teamSide !== humanSide) return { error: 'Karakter ini dikendalikan NPC secara otomatis di match PvNPC.' };
+      return resolvePvNPCContest(found, data, attackSide, defendSide, humanSide, myStyle);
+    }
+
+    // ---------------- PvP ----------------
+    var pendingRole = m[18];
+
+    if (!pendingRole) {
+      // First mover. Their role is whichever side they are.
+      var role = teamSide === attackSide ? 'attack' : 'defend';
+      var kickoffPending = !!m[43];
+      var chosenAction;
+      if (kickoffPending) {
+        // The restart pass hasn't happened yet — nobody can dribble/tackle
+        // past anyone until it does. Forced, regardless of what was sent.
+        chosenAction = role === 'attack' ? 'pass' : 'interception';
+      } else {
+        chosenAction = (data.chosenAction || '').toString().toLowerCase();
+        var validActions = role === 'attack' ? ['dribble', 'pass'] : ['tackle', 'interception'];
+        if (validActions.indexOf(chosenAction) === -1) {
+          return { error: 'Pilih aksi: ' + validActions.join(' atau ') + '.' };
+        }
+      }
+
+      var char1 = pickWeightedCharacter(data.matchCode, teamSide, chosenAction);
+      if (!char1) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+      var redCards1 = teamSide === 'A' ? (m[15] || 0) : (m[16] || 0);
+      var rolled1 = rollForCharacter(redCards1, char1, chosenAction);
+
+      found.sheet.getRange(found.row, 19, 1, 8).setValues([[
+        role, teamSide, chosenAction, rolled1.roll, char1.name, char1.position, rolled1.bonus, data.loggedInUsername
+      ]]);
+      found.sheet.getRange(found.row, 27).setValue(new Date().toISOString()); // WaitingSince
+      found.sheet.getRange(found.row, 42).setValue(new Date().toISOString()); // LastActivity
+      found.sheet.getRange(found.row, 45).setValue(myStyle); // PendingStyle
+
+      return {
+        success: true, status: 'pending', matchType: 'PvP',
+        role: role, mySide: teamSide, myAction: chosenAction, myStyle: myStyle,
+        myRoll: rolled1.roll, myCharacter: char1.name, myPosition: char1.position, myBonus: rolled1.bonus,
+        waitingFor: defendSideOrAttack(role, attackSide, defendSide)
+      };
+    }
+
+    // Second mover — must be the OTHER side from PendingSide.
+    if (teamSide === m[19]) return { error: 'Kamu sudah roll untuk kontes ini. Tunggu lawan.' };
+
+    var role2 = teamSide === attackSide ? 'attack' : 'defend';
+    var pendingAction = m[20]; // e.g. 'dribble' from the first mover
+    var pendingStyle = validateStyle(m[44]) || randomStyle(); // safety net for old pending rows with no style
+    var myAction2 = matchAction(pendingAction);
+
+    var char2 = pickWeightedCharacter(data.matchCode, teamSide, myAction2);
+    if (!char2) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+    var redCards2 = teamSide === 'A' ? (m[15] || 0) : (m[16] || 0);
+    var rolled2 = rollForCharacter(redCards2, char2, myAction2);
+
+    var pendingSide = m[19];
+    var attackData, defendData;
+    if (pendingSide === attackSide) {
+      attackData = { side: attackSide, action: pendingAction, style: pendingStyle, roll: m[21], character: m[22], position: m[23], bonus: !!m[24] };
+      defendData = { side: defendSide, action: myAction2, style: myStyle, roll: rolled2.roll, character: char2.name, position: char2.position, bonus: rolled2.bonus };
+    } else {
+      attackData = { side: attackSide, action: myAction2, style: myStyle, roll: rolled2.roll, character: char2.name, position: char2.position, bonus: rolled2.bonus };
+      defendData = { side: defendSide, action: pendingAction, style: pendingStyle, roll: m[21], character: m[22], position: m[23], bonus: !!m[24] };
+    }
+
+    var icLine = (data.icLine || '').toString().slice(0, 500);
+    var result = resolveContest(found, attackSide, defendSide, attackData, defendData, data.characterName, icLine, false);
+    result.matchType = 'PvP';
+    return result;
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function defendSideOrAttack(role, attackSide, defendSide) {
+  return role === 'attack' ? defendSide : attackSide;
+}
+
+// Maps the first mover's action to the auto-locked matching action
+// for whoever rolls second.
+function matchAction(action) {
+  if (action === 'dribble') return 'tackle';
+  if (action === 'pass') return 'interception';
+  if (action === 'tackle') return 'dribble';
+  if (action === 'interception') return 'pass';
+  return action;
+}
+
+// ============================================================
+// PvNPC (and NPCvNPC, which reuses this exact function) — the
+// ACTING side (humanSide param: the human in PvNPC, or whichever
+// side Seonbi chose to submit for in NPCvNPC) submits one action;
+// the system rolls the OTHER side automatically in the same call,
+// and both resolve together. The caller (submitRoll) is what
+// differs between PvNPC and NPCvNPC — this function doesn't need
+// to know or care which one it is, except for labeling the result.
+// ============================================================
+
+function resolvePvNPCContest(found, data, attackSide, defendSide, humanSide, myStyle) {
+  var m = found.data;
+  var matchType = m[7] || 'PvNPC';
+  var npcSide = humanSide === attackSide ? defendSide : attackSide;
+  var humanRole = humanSide === attackSide ? 'attack' : 'defend';
+
+  var chosenAction;
+  if (!!m[43]) {
+    // KickoffPending — same forced Pass/Interception restart rule as PvP.
+    chosenAction = humanRole === 'attack' ? 'pass' : 'interception';
+  } else {
+    chosenAction = (data.chosenAction || '').toString().toLowerCase();
+    var validActions = humanRole === 'attack' ? ['dribble', 'pass'] : ['tackle', 'interception'];
+    if (validActions.indexOf(chosenAction) === -1) {
+      return { error: 'Pilih aksi: ' + validActions.join(' atau ') + '.' };
+    }
+  }
+
+  var humanChar = pickWeightedCharacter(data.matchCode, humanSide, chosenAction);
+  if (!humanChar) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+  var humanRedCards = humanSide === 'A' ? (m[15] || 0) : (m[16] || 0);
+  var humanRolled = rollForCharacter(humanRedCards, humanChar, chosenAction);
+
+  var npcAction = matchAction(chosenAction);
+  var npcStyle = randomStyle();
+  var npcChar = pickWeightedCharacter(data.matchCode, npcSide, npcAction);
+  if (!npcChar) return { error: 'Tidak ada karakter NPC yang terdaftar untuk posisi ini.' };
+  var npcRedCards = npcSide === 'A' ? (m[15] || 0) : (m[16] || 0);
+  var npcRolled = rollForCharacter(npcRedCards, npcChar, npcAction);
+
+  var attackData, defendData;
+  if (humanRole === 'attack') {
+    attackData = { side: humanSide, action: chosenAction, style: myStyle, roll: humanRolled.roll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus };
+    defendData = { side: npcSide, action: npcAction, style: npcStyle, roll: npcRolled.roll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus };
+  } else {
+    attackData = { side: npcSide, action: npcAction, style: npcStyle, roll: npcRolled.roll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus };
+    defendData = { side: humanSide, action: chosenAction, style: myStyle, roll: humanRolled.roll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus };
+  }
+
+  var icLine = (data.icLine || '').toString().slice(0, 500);
+  var result = resolveContest(found, attackSide, defendSide, attackData, defendData, data.characterName, icLine, false);
+  result.matchType = matchType; // 'PvNPC' or 'NPCvNPC', whichever this match actually is
+  result.mySide = humanSide;
+  return result;
+}
+
+// ============================================================
+// RESOLVE CONTEST — shared by PvP (2nd mover) and PvNPC.
+// Computes margin/winner, banks progress, applies the outcome
+// bucket (incl. foul/penalty carve-outs + card/injury check),
+// advances the minute clock, and clears any pending state.
+// ============================================================
+
+function resolveContest(found, attackSide, defendSide, attackData, defendData, submittedBy, icLine, autoResolved) {
+  var m = found.data;
+  var margin = Math.abs(attackData.roll - defendData.roll);
+  if (margin === 0) margin = 1;
+  // Style (Pace/Power/Skill) decides who wins the exchange — the raw
+  // roll only breaks a tie (both sides picked the same style). Margin
+  // itself is untouched by any of this: it's still the SAME roll gap
+  // as before, still driving progressForMargin()/tackleFailOutcome()/
+  // tackleSucceedOutcome() exactly as it always has.
+  var rps = rpsStyleResult(attackData.style, defendData.style);
+  var attackWins = rps === 'tie' ? (attackData.roll > defendData.roll) : (rps === 'attack');
+  var winnerSide = attackWins ? attackSide : defendSide;
+
+  var progressGained = progressForMargin(margin);
+  var outcome = attackWins ? tackleFailOutcome(margin) : tackleSucceedOutcome(margin);
+
+  var progressA = parseInt(m[11]) || 0, progressB = parseInt(m[12]) || 0;
+  if (winnerSide === 'A') progressA += progressGained; else progressB += progressGained;
+
+  var newTeamInAttack = attackWins ? attackSide : defendSide; // defend win flips possession
+
+  // Advance the minute clock by 1.
+  var halfMinute = (parseInt(m[9]) || 0) + 1;
+
+  // Foul / penalty secondary check (cards + injury) — only fires on
+  // those two outcomes, and only when the ATTACK side won the roll
+  // (foul/penalty live inside the "tackle fails" bucket).
+  var incident = null;
+  var redCardsA = parseInt(m[15]) || 0, redCardsB = parseInt(m[16]) || 0;
+  var offenderSide = defendSide; // the team that committed the foul is the defending side
+  if (outcome === 'foul' || outcome === 'penalty') {
+    incident = rollIncident(found.data, offenderSide, defendData.character);
+    if (incident.cardTier === 'Red') {
+      if (offenderSide === 'A') redCardsA++; else redCardsB++;
+    }
+    if (incident.injuryOccurred) {
+      markCharacterInjured(m[0], incident.injuredCharacter);
+    }
+  }
+
+  // ShootReady: penalty, corner, AND foul (non-penalty free kick) ALL
+  // grant an immediate free shot now — not just penalty — each tagged
+  // with its own ShootType so resolveShoot() picks the matching
+  // Config_Shoot_* flavor pool. Otherwise, re-check whether the team
+  // now IN ATTACK has >=50 banked on EVERY contest (not just the roll
+  // that crosses the threshold), so a team that regains possession
+  // with progress already banked from earlier in the match is
+  // immediately shoot-eligible too (open_play shot, costs -50 progress).
+  var shootReady = '', shootIsFreeShot = false, shootType = '';
+  if (outcome === 'penalty' || outcome === 'corner' || outcome === 'foul') {
+    shootReady = attackSide; // the attacking side (the one awarded the set piece) gets the shot
+    shootIsFreeShot = true;
+    shootType = outcome === 'penalty' ? 'penalty' : outcome === 'corner' ? 'corner' : 'freekick';
+  } else {
+    var attackTeamProgress = newTeamInAttack === 'A' ? progressA : progressB;
+    if (attackTeamProgress >= PROGRESS_TO_SHOOT) { shootReady = newTeamInAttack; shootType = 'open_play'; }
+  }
+
+  // Write back match state.
+  found.sheet.getRange(found.row, 11).setValue(newTeamInAttack); // TeamInAttack
+  found.sheet.getRange(found.row, 12, 1, 2).setValues([[progressA, progressB]]); // ProgressA, ProgressB
+  found.sheet.getRange(found.row, 16, 1, 2).setValues([[redCardsA, redCardsB]]); // RedCardsA, RedCardsB
+  found.sheet.getRange(found.row, 10).setValue(halfMinute); // HalfMinute (col 10 = index 9 => sheet col 10)
+  clearPending(found);
+  found.sheet.getRange(found.row, 28, 1, 2).setValues([[shootReady, shootIsFreeShot]]); // ShootReady, ShootIsFreeShot
+  found.sheet.getRange(found.row, 43).setValue(shootType); // ShootType
+  found.sheet.getRange(found.row, 42).setValue(new Date().toISOString()); // LastActivity
+  found.sheet.getRange(found.row, 44).setValue(false); // KickoffPending — the restart pass is done now
+
+  var rollId = Utilities.getUuid().slice(0, 8);
+  appendRollLogRow(m[0], submittedBy, m[8], halfMinute, attackData, defendData, margin,
+    attackWins ? 'attack' : 'defend', progressGained, winnerSide, outcome, newTeamInAttack,
+    incident, icLine, autoResolved, rollId, rps);
+
+  var halfOver = checkHalfBoundary(found, halfMinute);
+
+  return {
+    success: true,
+    attack: attackData, defend: defendData,
+    margin: margin, winner: attackWins ? 'attack' : 'defend', winnerSide: winnerSide, teamProgressed: winnerSide, rpsResult: rps,
+    progressGained: progressGained, progressA: progressA, progressB: progressB,
+    outcome: outcome, newTeamInAttack: newTeamInAttack,
+    halfMinute: halfMinute, phase: m[8],
+    incident: incident,
+    shootReady: shootReady, shootIsFreeShot: shootIsFreeShot, shootType: shootType,
+    halfOver: halfOver,
+    rollId: rollId
+  };
+}
+
+function clearPending(found) {
+  found.sheet.getRange(found.row, 19, 1, 8).setValues([['', '', '', '', '', '', false, '']]);
+  found.sheet.getRange(found.row, 45).setValue(''); // PendingStyle
+}
+
+// ============================================================
+// CARD / INJURY CHECK — fires only on foul or penalty.
+// ============================================================
+
+function rollIncident(matchRow, offenderSide, offenderCharacter) {
+  var cfg = readIncidentConfig();
+  var r = Math.random();
+  var cardTier = '';
+  if (r < cfg.chanceRed) cardTier = 'Red';
+  else if (r < cfg.chanceRed + cfg.chanceYellow) cardTier = 'Yellow';
+
+  var injuryOccurred = Math.random() < cfg.chanceInjury;
+  // Injury doesn't have to be the offender — a foul can hurt either
+  // player in the challenge — but keeping it simple and consistent:
+  // it's the character who committed the foul that goes down.
+  var injuredCharacter = injuryOccurred ? offenderCharacter : '';
+
+  return {
+    cardTier: cardTier, cardSide: cardTier ? offenderSide : '', cardCharacter: cardTier ? offenderCharacter : '',
+    injuryOccurred: injuryOccurred, injuredCharacter: injuredCharacter
+  };
+}
+
+function markCharacterInjured(matchCode, characterName) {
+  var rs = getFootballSpreadsheet().getSheetByName('Roster');
+  var rows = rs.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] === matchCode && rows[i][2] === characterName) {
+      rs.getRange(i + 1, 7).setValue(true); // Injured column
+      return;
+    }
+  }
+}
+
+// ============================================================
+// SHOOT / SAVE — same first-mover/second-mover shape as a normal
+// contest, but neither side has a real choice: shooter always
+// "shoots", GK always "saves". Whichever side rolls first shows
+// immediately; the match waits for the other side (PvP) or the
+// system auto-resolves both at once (PvNPC).
+// ============================================================
+
+function submitShoot(data) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { error: 'Sistem sedang sibuk, coba sebentar lagi.' };
+  try {
+    var found = findMatch(data.matchCode);
+    if (!found) return { error: 'Match tidak ditemukan.' };
+    var m = found.data;
+    if (m[6] === 'finished') return { error: 'Match sudah selesai.' };
+    if (!m[27]) return { error: 'Belum ada trigger untuk shoot.' };
+
+    var shootSide = m[27];
+    var gkSide = shootSide === 'A' ? 'B' : 'A';
+    var matchType = m[7] || 'PvP';
+
+    if (!data.loggedInUsername) return { error: 'Gagal mendeteksi akun. Coba refresh halaman.' };
+
+    var myStyle = validateStyle(data.styleType);
+    if (!myStyle) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
+
+    // NPCvNPC: admin-only, same reasoning as submitRoll — see RULES BY
+    // MATCH TYPE at the top of this file. No 30-min cooldown check here
+    // (shoot/save has no free action choice to rate-limit, and a shot
+    // your team just earned shouldn't be stalled by an unrelated
+    // cooldown) — but the 5-per-24h daily cap DOES count shots too.
+    if (matchType === 'NPCvNPC') {
+      if (!isFootballAdmin(data.loggedInUsername)) {
+        return { error: 'Match NPC vs NPC hanya bisa di-roll oleh admin.' };
+      }
+      var accessNvN = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, matchType);
+      if (!accessNvN.allowed) return { error: accessNvN.error };
+      var roleNvN = accessNvN.side === shootSide ? 'shoot' : 'save';
+      // GK never chose to be shot at, so the daily roll cap doesn't apply
+      // to Save — only the shooter's own free choice to take a shot counts
+      // against their cap.
+      if (roleNvN !== 'save') {
+        var dailyCapNvN = checkPvNPCDailyCap(data.matchCode, data.characterName);
+        if (dailyCapNvN.blocked) return dailyCapNvN;
+      }
+      return resolvePvNPCShoot(found, data, shootSide, gkSide, accessNvN.side, myStyle);
+    }
+
+    var access = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, matchType);
+    if (!access.allowed) return { error: access.error };
+    var teamSide = access.side;
+    if (teamSide !== shootSide && teamSide !== gkSide) return { error: 'Karakter ini tidak ada di pertandingan ini.' };
+
+    if (matchType === 'PvNPC') {
+      var humanSide = isSideAllNPC(data.matchCode, shootSide) ? gkSide : shootSide;
+      if (teamSide !== humanSide) return { error: 'Sisi ini dikendalikan NPC di match PvNPC.' };
+      var humanRole = humanSide === shootSide ? 'shoot' : 'save';
+      // Same GK exemption as above — a save is a forced response, not a
+      // roll the keeper chose to spend, so it never counts against their
+      // 5-per-day cap.
+      if (humanRole !== 'save') {
+        var dailyCap = checkPvNPCDailyCap(data.matchCode, data.characterName);
+        if (dailyCap.blocked) return dailyCap;
+      }
+      var gkLockPvNPC = requireGkOwnerIfSave(data.loggedInUsername, data.matchCode, humanSide, humanRole, data.characterName);
+      if (!gkLockPvNPC.ok) return { error: gkLockPvNPC.error };
+      return resolvePvNPCShoot(found, data, shootSide, gkSide, humanSide, myStyle);
+    }
+
+    // ---------------- PvP ----------------
+    var pendingShootRole = m[29];
+
+    if (!pendingShootRole) {
+      var role = teamSide === shootSide ? 'shoot' : 'save';
+      var gkLock1 = requireGkOwnerIfSave(data.loggedInUsername, data.matchCode, teamSide, role, data.characterName);
+      if (!gkLock1.ok) return { error: gkLock1.error };
+      var action = role === 'shoot' ? 'shoot' : 'save';
+      var char1 = pickWeightedCharacter(data.matchCode, teamSide, action);
+      if (!char1) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+      var redCards1 = teamSide === 'A' ? (m[15] || 0) : (m[16] || 0);
+      var rolled1 = rollForCharacter(redCards1, char1, action);
+
+      found.sheet.getRange(found.row, 30, 1, 7).setValues([[
+        role, teamSide, rolled1.roll, char1.name, char1.position, rolled1.bonus, data.loggedInUsername
+      ]]);
+      found.sheet.getRange(found.row, 37).setValue(new Date().toISOString());
+      found.sheet.getRange(found.row, 42).setValue(new Date().toISOString());
+      found.sheet.getRange(found.row, 46).setValue(myStyle); // PendingShootStyle
+
+      return {
+        success: true, status: 'pending', matchType: 'PvP',
+        role: role, mySide: teamSide, myRoll: rolled1.roll, myStyle: myStyle,
+        myCharacter: char1.name, myPosition: char1.position, myBonus: rolled1.bonus,
+        shootType: m[42] || 'open_play',
+        waitingFor: role === 'shoot' ? gkSide : shootSide
+      };
+    }
+
+    if (teamSide === m[30]) return { error: 'Kamu sudah roll. Tunggu lawan.' };
+
+    var role2 = teamSide === shootSide ? 'shoot' : 'save';
+    var gkLock2 = requireGkOwnerIfSave(data.loggedInUsername, data.matchCode, teamSide, role2, data.characterName);
+    if (!gkLock2.ok) return { error: gkLock2.error };
+    var char2 = pickWeightedCharacter(data.matchCode, teamSide, role2);
+    if (!char2) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+    var redCards2 = teamSide === 'A' ? (m[15] || 0) : (m[16] || 0);
+    var rolled2 = rollForCharacter(redCards2, char2, role2);
+    var pendingShootStyle = validateStyle(m[45]) || randomStyle(); // safety net for old pending rows with no style
+
+    var shootData, saveData;
+    if (m[29] === 'shoot') {
+      shootData = { roll: m[31], character: m[32], position: m[33], bonus: !!m[34], style: pendingShootStyle };
+      saveData = { roll: rolled2.roll, character: char2.name, position: char2.position, bonus: rolled2.bonus, style: myStyle };
+    } else {
+      shootData = { roll: rolled2.roll, character: char2.name, position: char2.position, bonus: rolled2.bonus, style: myStyle };
+      saveData = { roll: m[31], character: m[32], position: m[33], bonus: !!m[34], style: pendingShootStyle };
+    }
+
+    var icLine = (data.icLine || '').toString().slice(0, 500);
+    return resolveShoot(found, shootSide, gkSide, shootData, saveData, data.characterName, icLine, false, 'PvP');
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Shared by PvNPC and NPCvNPC (see resolvePvNPCContest's comment — same
+// idea: humanSide is "whichever side is acting", the human in PvNPC or
+// Seonbi's chosen side in NPCvNPC).
+function resolvePvNPCShoot(found, data, shootSide, gkSide, humanSide, myStyle) {
+  var m = found.data;
+  var matchType = m[7] || 'PvNPC';
+  var npcSide = humanSide === shootSide ? gkSide : shootSide;
+  var humanAction = humanSide === shootSide ? 'shoot' : 'save';
+  var npcAction = npcSide === shootSide ? 'shoot' : 'save';
+
+  var humanChar = pickWeightedCharacter(data.matchCode, humanSide, humanAction);
+  if (!humanChar) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+  var humanRedCards = humanSide === 'A' ? (m[15] || 0) : (m[16] || 0);
+  var humanRolled = rollForCharacter(humanRedCards, humanChar, humanAction);
+
+  var npcStyle = randomStyle();
+  var npcChar = pickWeightedCharacter(data.matchCode, npcSide, npcAction);
+  if (!npcChar) return { error: 'Tidak ada karakter NPC yang terdaftar untuk posisi ini.' };
+  var npcRedCards = npcSide === 'A' ? (m[15] || 0) : (m[16] || 0);
+  var npcRolled = rollForCharacter(npcRedCards, npcChar, npcAction);
+
+  var shootData, saveData;
+  if (humanAction === 'shoot') {
+    shootData = { roll: humanRolled.roll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus, style: myStyle };
+    saveData = { roll: npcRolled.roll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus, style: npcStyle };
+  } else {
+    shootData = { roll: npcRolled.roll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus, style: npcStyle };
+    saveData = { roll: humanRolled.roll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus, style: myStyle };
+  }
+
+  var icLine = (data.icLine || '').toString().slice(0, 500);
+  return resolveShoot(found, shootSide, gkSide, shootData, saveData, data.characterName, icLine, false, matchType);
+}
+
+function resolveShoot(found, shootSide, gkSide, shootData, saveData, submittedBy, icLine, autoResolved, matchType) {
+  var m = found.data;
+  var margin = Math.abs(shootData.roll - saveData.roll);
+  if (margin === 0) margin = 1;
+  // Same RPS-decides-the-duel rule as resolveContest: style beats style
+  // decides shooter-vs-GK; the raw roll only breaks a tie. Margin is
+  // still the same roll gap, still driving shootBucketLookup() untouched.
+  var rps = rpsStyleResult(shootData.style, saveData.style);
+  var shooterWins = rps === 'tie' ? (shootData.roll > saveData.roll) : (rps === 'attack');
+
+  var shootType = (m[42] || 'open_play').toString();
+  var bucket = shootBucketLookup(shootType, shooterWins ? 'success' : 'fail', margin);
+  var outcome = bucket.outcome;
+
+  var isFreeShot = !!m[28];
+  var progressA = parseInt(m[11]) || 0, progressB = parseInt(m[12]) || 0;
+  if (!isFreeShot) {
+    if (shootSide === 'A') progressA = Math.max(0, progressA - PROGRESS_TO_SHOOT);
+    else progressB = Math.max(0, progressB - PROGRESS_TO_SHOOT);
+  }
+
+  var scoreA = parseInt(m[13]) || 0, scoreB = parseInt(m[14]) || 0;
+  if (outcome === 'goal') {
+    if (shootSide === 'A') scoreA++; else scoreB++;
+  }
+
+  // Possession after a miss normally goes to the defending (GK's) team,
+  // but a bucket can flag the rebound as recovered by the shooting side
+  // instead (PossessionAfter = 'shooter') — matches Dini's old system,
+  // where some deflections/blocks are recovered by whichever team is
+  // actually first to the loose ball. A goal always restarts with the
+  // conceding (GK's) team, same as before.
+  var newTeamInAttack = (outcome !== 'goal' && bucket.possessionAfter === 'shooter') ? shootSide : gkSide;
+
+  // The receiving team may already have 50+ banked from earlier in the
+  // match — re-check immediately rather than always clearing ShootReady,
+  // same reasoning as resolveContest.
+  var gkTeamProgress = newTeamInAttack === 'A' ? progressA : progressB;
+  var nextShootReady = gkTeamProgress >= PROGRESS_TO_SHOOT ? newTeamInAttack : '';
+  var nextShootType = nextShootReady ? 'open_play' : '';
+
+  var flavorText = fillShootTemplate(bucket.template, {
+    matchCode: m[0],
+    shootSide: shootSide, gkSide: gkSide,
+    shootCharacter: shootData.character, saveCharacter: saveData.character,
+    shootTeamName: shootSide === 'A' ? m[3] : m[5],
+    gkTeamName: gkSide === 'A' ? m[3] : m[5]
+  });
+
+  found.sheet.getRange(found.row, 11).setValue(newTeamInAttack); // TeamInAttack
+  found.sheet.getRange(found.row, 12, 1, 2).setValues([[progressA, progressB]]); // Progress
+  found.sheet.getRange(found.row, 14, 1, 2).setValues([[scoreA, scoreB]]); // Score
+  found.sheet.getRange(found.row, 28, 1, 2).setValues([[nextShootReady, false]]); // ShootReady, ShootIsFreeShot
+  found.sheet.getRange(found.row, 43).setValue(nextShootType); // ShootType
+  clearPendingShoot(found);
+  found.sheet.getRange(found.row, 42).setValue(new Date().toISOString());
+
+  var shootId = Utilities.getUuid().slice(0, 8);
+  appendShootLogRow(m[0], submittedBy, m[8], m[9], shootSide, shootType, shootData, saveData, margin, outcome, flavorText, scoreA, scoreB, icLine, autoResolved, shootId, rps);
+
+  return {
+    success: true, matchType: matchType,
+    shoot: shootData, save: saveData, margin: margin, outcome: outcome, rpsResult: rps,
+    shootType: shootType, flavorText: flavorText,
+    isFreeShot: isFreeShot, scoreA: scoreA, scoreB: scoreB,
+    progressA: progressA, progressB: progressB,
+    newTeamInAttack: newTeamInAttack, shootId: shootId
+  };
+}
+
+function clearPendingShoot(found) {
+  found.sheet.getRange(found.row, 30, 1, 8).setValues([['', '', '', '', '', false, '', '']]);
+  found.sheet.getRange(found.row, 46).setValue(''); // PendingShootStyle
+}
+
+// ============================================================
+// LOGGING
+// ============================================================
+
+function appendRollLogRow(matchCode, submittedBy, phase, minute, attackData, defendData, margin, winner, progressGained, teamProgressed, outcome, newTeamInAttack, incident, icLine, autoResolved, rollId, rpsResult) {
+  var row = [
+    new Date(), matchCode, submittedBy, phase, minute,
+    attackData.action, defendData.action,
+    attackData.side, attackData.roll, attackData.character, attackData.position, !!attackData.bonus,
+    defendData.side, defendData.roll, defendData.character, defendData.position, !!defendData.bonus,
+    margin, winner, progressGained, teamProgressed, outcome, newTeamInAttack,
+    incident ? incident.cardTier : '', incident ? incident.cardSide : '', incident ? incident.cardCharacter : '',
+    incident ? incident.injuryOccurred : false, incident ? incident.injuredCharacter : '',
+    icLine || '', autoResolved || false, rollId,
+    attackData.style || '', defendData.style || '', rpsResult || ''
+  ];
+  getFootballSpreadsheet().getSheetByName('RollLog').appendRow(row);
+}
+
+function appendShootLogRow(matchCode, submittedBy, phase, minute, shootSide, shootType, shootData, saveData, margin, outcome, flavorText, scoreA, scoreB, icLine, autoResolved, shootId, rpsResult) {
+  var row = [
+    new Date(), matchCode, submittedBy, phase, minute, shootSide, shootType || 'open_play',
+    shootData.roll, shootData.character, shootData.position, !!shootData.bonus,
+    saveData.roll, saveData.character,
+    margin, outcome, flavorText || '', scoreA, scoreB, icLine || '', autoResolved || false, shootId,
+    shootData.style || '', saveData.style || '', rpsResult || ''
+  ];
+  getFootballSpreadsheet().getSheetByName('ShootLog').appendRow(row);
+}
+
+// ============================================================
+// HALF / EXTRA-TIME BOUNDARIES
+// 1 roll = 1 minute. Half = 45 rolls. ET half = 15 rolls.
+// Reaching the cap parks the match at 'halftime'/'finished' and
+// waits for startSecondHalf() / startExtraTime() (or admin ruling
+// the group-stage draw stands) rather than auto-advancing, so
+// nothing changes mid-exchange.
+// ============================================================
+
+function checkHalfBoundary(found, halfMinute) {
+  var m = found.data;
+  var phase = m[8];
+  var cap = (phase === 'ET1' || phase === 'ET2') ? ROLL_MINUTES_PER_ET_HALF : ROLL_MINUTES_PER_HALF;
+  if (halfMinute < cap) return false;
+
+  if (phase === 'H1') {
+    found.sheet.getRange(found.row, 7).setValue('halftime');
+    return true;
+  }
+  if (phase === 'H2') {
+    var scoreA = parseInt(m[13]) || 0, scoreB = parseInt(m[14]) || 0;
+    var drawAllowed = !!m[40];
+    if (scoreA !== scoreB || drawAllowed) {
+      found.sheet.getRange(found.row, 7).setValue('finished');
+    } else {
+      found.sheet.getRange(found.row, 7).setValue('halftime'); // waiting on startExtraTime()
+    }
+    return true;
+  }
+  if (phase === 'ET1') {
+    found.sheet.getRange(found.row, 7).setValue('halftime'); // waiting on second ET half
+    return true;
+  }
+  if (phase === 'ET2') {
+    // Still level after ET — penalty shootout is not built yet (deferred by
+    // design). Match is parked 'halftime' with phase ET2 so an admin can
+    // hand it off manually until the shootout mechanic exists.
+    found.sheet.getRange(found.row, 7).setValue('halftime');
+    return true;
+  }
+  return false;
+}
+
+function startSecondHalf(data) {
+  var found = findMatch(data.matchCode);
+  if (!found) return { error: 'Match tidak ditemukan.' };
+  var m = found.data;
+  if (m[8] !== 'H1' || m[6] !== 'halftime') return { error: 'Match tidak sedang menunggu babak kedua.' };
+  var secondHalfKickoff = m[17] === 'A' ? 'B' : 'A'; // whoever didn't kick off H1
+  // Status(7), Phase(9), HalfMinute(10), TeamInAttack(11) are not contiguous
+  // with MatchType(8) sitting in between — write each individually so
+  // MatchType is never touched.
+  found.sheet.getRange(found.row, 7).setValue('active');
+  found.sheet.getRange(found.row, 9).setValue('H2');
+  found.sheet.getRange(found.row, 10).setValue(0);
+  found.sheet.getRange(found.row, 11).setValue(secondHalfKickoff);
+  found.sheet.getRange(found.row, 44).setValue(true); // KickoffPending
+  return { success: true, phase: 'H2', teamInAttack: secondHalfKickoff };
+}
+
+function startExtraTime(data) {
+  var found = findMatch(data.matchCode);
+  if (!found) return { error: 'Match tidak ditemukan.' };
+  var m = found.data;
+  if (m[6] !== 'halftime') return { error: 'Match tidak sedang menunggu extra time.' };
+
+  var nextPhase;
+  if (m[8] === 'H2') nextPhase = 'ET1';
+  else if (m[8] === 'ET1') nextPhase = 'ET2';
+  else return { error: 'Match ini tidak memenuhi syarat untuk extra time.' };
+
+  var kickoffTeam = nextPhase === 'ET1' ? (m[17] === 'A' ? 'B' : 'A') : m[10];
+  found.sheet.getRange(found.row, 7).setValue('active');
+  found.sheet.getRange(found.row, 9).setValue(nextPhase);
+  found.sheet.getRange(found.row, 10).setValue(0);
+  found.sheet.getRange(found.row, 11).setValue(kickoffTeam);
+  found.sheet.getRange(found.row, 44).setValue(true); // KickoffPending
+  return { success: true, phase: nextPhase, teamInAttack: kickoffTeam };
+}
+
+// ============================================================
+// 24H AUTO-RESOLVE FOR STALE PvP TURNS — PvP ONLY. PvNPC and
+// NPCvNPC both resolve fully within a single submitRoll/submitShoot
+// call (see RULES BY MATCH TYPE at the top of this file), so they
+// never leave a roll pending and this never applies to them.
+// Fills exactly one missing roll (contest OR shoot/save) for
+// whichever side hasn't responded in 24h+, using a degraded die
+// (1d50) same spirit as the other sports' stale-turn fallback.
+// ============================================================
+
+function checkStaleFootballTurns() {
+  var ss = getFootballSpreadsheet();
+  var ms = ss.getSheetByName('Matches');
+  var rows = ms.getDataRange().getValues();
+  var now = new Date();
+
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (r[7] !== 'PvP' || r[6] === 'finished') continue;
+    var found = { row: i + 1, data: r, sheet: ms };
+
+    // Stale open-play contest.
+    if (r[18] && r[26]) {
+      var waitedContest = (now - new Date(r[26])) / (1000 * 60 * 60);
+      if (waitedContest >= 24) {
+        autoFillContest(found);
+      }
+    }
+    // Stale shoot/save.
+    else if (r[29] && r[36]) {
+      var waitedShoot = (now - new Date(r[36])) / (1000 * 60 * 60);
+      if (waitedShoot >= 24) {
+        autoFillShoot(found);
+      }
+    }
+  }
+}
+
+function autoFillContest(found) {
+  var m = found.data;
+  var attackSide = m[10], defendSide = attackSide === 'A' ? 'B' : 'A';
+  var pendingSide = m[19];
+  var missingSide = pendingSide === attackSide ? defendSide : attackSide;
+  var missingAction = matchAction(m[20]);
+
+  var char = pickWeightedCharacter(m[0], missingSide, missingAction);
+  if (!char) return; // nothing registered to fill with — leave it parked
+  var roll = Math.floor(Math.random() * 50) + 1; // degraded 1-50, no bonus applied
+  var pendingStyle = validateStyle(m[44]) || randomStyle(); // the side that already rolled kept their style there
+  var fillStyle = randomStyle(); // the auto-filled side gets a random style too
+
+  var attackData, defendData;
+  if (pendingSide === attackSide) {
+    attackData = { side: attackSide, action: m[20], roll: m[21], character: m[22], position: m[23], bonus: !!m[24], style: pendingStyle };
+    defendData = { side: defendSide, action: missingAction, roll: roll, character: char.name, position: char.position, bonus: false, style: fillStyle };
+  } else {
+    attackData = { side: attackSide, action: missingAction, roll: roll, character: char.name, position: char.position, bonus: false, style: fillStyle };
+    defendData = { side: defendSide, action: m[20], roll: m[21], character: m[22], position: m[23], bonus: !!m[24], style: pendingStyle };
+  }
+
+  var note = '[Sistem roll otomatis untuk ' + char.name + ' setelah 24 jam tidak ada respons]';
+  resolveContest(found, attackSide, defendSide, attackData, defendData, 'Girok (auto)', note, true);
+}
+
+function autoFillShoot(found) {
+  var m = found.data;
+  var shootSide = m[27], gkSide = shootSide === 'A' ? 'B' : 'A';
+  var pendingSide = m[30];
+  var missingSide = pendingSide === shootSide ? gkSide : shootSide;
+  var missingAction = missingSide === shootSide ? 'shoot' : 'save';
+
+  var char = pickWeightedCharacter(m[0], missingSide, missingAction);
+  if (!char) return;
+  var roll = Math.floor(Math.random() * 50) + 1;
+  var pendingStyle = validateStyle(m[45]) || randomStyle();
+  var fillStyle = randomStyle();
+
+  var shootData, saveData;
+  if (m[29] === 'shoot') {
+    shootData = { roll: m[31], character: m[32], position: m[33], bonus: !!m[34], style: pendingStyle };
+    saveData = { roll: roll, character: char.name, position: char.position, bonus: false, style: fillStyle };
+  } else {
+    shootData = { roll: roll, character: char.name, position: char.position, bonus: false, style: fillStyle };
+    saveData = { roll: m[31], character: m[32], position: m[33], bonus: !!m[34], style: pendingStyle };
+  }
+
+  var note = '[Sistem roll otomatis untuk ' + char.name + ' setelah 24 jam tidak ada respons]';
+  resolveShoot(found, shootSide, gkSide, shootData, saveData, 'Girok (auto)', note, true, 'PvP');
+}
+
+// ============================================================
+// SHOOT CONFIG BUILDERS — used only by setupSheets() below to seed the
+// four Config_Shoot_* tables. g()/s()/off() are shorthand for a single
+// flavor row; evenMarginRanges()/setupShootConfig() lay a list of them
+// out evenly across margin 1-99. All purely a one-time seeding
+// convenience — once the sheet exists, editing rows directly in the
+// Sheet is the normal way to change this (see the note above each
+// setupShootConfig() call).
+// ============================================================
+
+function g(text) { return { outcome: 'goal', possession: 'defender', text: text }; }
+function s(text, possession) { return { outcome: 'save', possession: possession || 'defender', text: text }; }
+function off(text) { return { outcome: 'offside', possession: 'defender', text: text }; }
+
+function evenMarginRanges(n) {
+  var out = [];
+  var base = Math.floor(99 / n), rem = 99 % n, lo = 1;
+  for (var i = 0; i < n; i++) {
+    var size = base + (i < rem ? 1 : 0);
+    var hi = lo + size - 1;
+    out.push([lo, hi]);
+    lo = hi + 1;
+  }
+  return out;
+}
+
+function buildShootRows(result, items) {
+  var ranges = evenMarginRanges(items.length);
+  return items.map(function (item, i) {
+    return [result, ranges[i][0], ranges[i][1], item.outcome, item.possession, item.text];
+  });
+}
+
+function setupShootConfig(ss, sheetName, successItems, failItems) {
+  var sh = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(['Result', 'MarginMin', 'MarginMax', 'Outcome', 'PossessionAfter', 'DescriptionTemplate']);
+    sh.getRange(1, 1, 1, 6).setFontWeight('bold');
+    var rows = buildShootRows('success', successItems).concat(buildShootRows('fail', failItems));
+    sh.getRange(2, 1, rows.length, 6).setValues(rows);
+  }
+}
+
+// ============================================================
+// SETUP — run once, safe to re-run
+// ============================================================
+
+function setupSheets() {
+  var ss = getFootballSpreadsheet();
+
+  var ms = ss.getSheetByName('Matches') || ss.insertSheet('Matches');
+  if (ms.getLastRow() === 0) {
+    ms.appendRow([
+      'Code', 'Sport', 'SchoolA', 'TeamNameA', 'SchoolB', 'TeamNameB',
+      'Status', 'MatchType', 'Phase', 'HalfMinute', 'TeamInAttack',
+      'ProgressA', 'ProgressB', 'ScoreA', 'ScoreB', 'RedCardsA', 'RedCardsB',
+      'KickoffFirstHalf',
+      'PendingRole', 'PendingSide', 'PendingAction', 'PendingRoll', 'PendingCharacter',
+      'PendingPosition', 'PendingBonus', 'PendingSubmittedBy', 'WaitingSince',
+      'ShootReady', 'ShootIsFreeShot',
+      'PendingShootRole', 'PendingShootSide', 'PendingShootRoll', 'PendingShootCharacter',
+      'PendingShootPosition', 'PendingShootBonus', 'PendingShootSubmittedBy', 'ShootWaitingSince',
+      'Round', 'NextRound', 'Gender', 'DrawAllowed', 'LastActivity', 'ShootType', 'KickoffPending', 'PendingStyle',
+      'PendingShootStyle'
+    ]);
+    ms.getRange(1, 1, 1, 46).setFontWeight('bold');
+  }
+
+  var rs = ss.getSheetByName('Roster') || ss.insertSheet('Roster');
+  if (rs.getLastRow() === 0) {
+    rs.appendRow(['MatchCode', 'TeamSide', 'CharacterName', 'Position', 'IsNPC', 'Username', 'Injured']);
+    rs.getRange('A1:G1').setFontWeight('bold');
+  }
+
+  var rl = ss.getSheetByName('RollLog') || ss.insertSheet('RollLog');
+  if (rl.getLastRow() === 0) {
+    rl.appendRow([
+      'Timestamp', 'MatchCode', 'SubmittedBy', 'Phase', 'Minute',
+      'ActionAttack', 'ActionDefend',
+      'AttackSide', 'RollAttack', 'CharacterAttack', 'PositionAttack', 'BonusAttack',
+      'DefendSide', 'RollDefend', 'CharacterDefend', 'PositionDefend', 'BonusDefend',
+      'Margin', 'Winner', 'ProgressGained', 'TeamProgressed', 'Outcome', 'NewTeamInAttack',
+      'CardTier', 'CardSide', 'CardCharacter', 'InjuryOccurred', 'InjuredCharacter',
+      'ICLine', 'AutoResolved', 'RollID', 'StyleAttack', 'StyleDefend', 'RPSResult'
+    ]);
+    rl.getRange(1, 1, 1, 34).setFontWeight('bold');
+  }
+
+  var sl = ss.getSheetByName('ShootLog') || ss.insertSheet('ShootLog');
+  if (sl.getLastRow() === 0) {
+    sl.appendRow([
+      'Timestamp', 'MatchCode', 'SubmittedBy', 'Phase', 'Minute', 'ShootSide', 'ShootType',
+      'RollShoot', 'CharacterShoot', 'PositionShoot', 'BonusShoot',
+      'RollSave', 'CharacterSave',
+      'Margin', 'Outcome', 'FlavorText', 'ScoreAAfter', 'ScoreBAfter',
+      'ICLine', 'AutoResolved', 'ShootID', 'StyleShoot', 'StyleSave', 'RPSResult'
+    ]);
+    sl.getRange(1, 1, 1, 24).setFontWeight('bold');
+  }
+
+  var pr = ss.getSheetByName('Proxies') || ss.insertSheet('Proxies');
+  if (pr.getLastRow() === 0) {
+    pr.appendRow(['AccountUsername', 'CanPostAs']);
+    pr.getRange('A1:B1').setFontWeight('bold');
+  }
+
+  // ---- Config_Progress: margin -> progress banked ----
+  var cp = ss.getSheetByName('Config_Progress') || ss.insertSheet('Config_Progress');
+  if (cp.getLastRow() === 0) {
+    cp.appendRow(['MarginMin', 'MarginMax', 'Progress']);
+    cp.getRange('A1:C1').setFontWeight('bold');
+    cp.getRange(2, 1, 5, 3).setValues([
+      [1, 20, 2], [21, 40, 4], [41, 60, 6], [61, 80, 8], [81, 99, 10]
+    ]);
+  }
+
+  // ---- Config_TackleSucceed: margin -> outcome, when DEFEND wins ----
+  // open_play 70%, throwin_defend 15%, goalkick 15%.
+  var cts = ss.getSheetByName('Config_TackleSucceed') || ss.insertSheet('Config_TackleSucceed');
+  if (cts.getLastRow() === 0) {
+    cts.appendRow(['MarginMin', 'MarginMax', 'Outcome']);
+    cts.getRange('A1:C1').setFontWeight('bold');
+    cts.getRange(2, 1, 3, 3).setValues([
+      [1, 15, 'throwin_defend'], [16, 84, 'open_play'], [85, 99, 'goalkick']
+    ]);
+  }
+
+  // ---- Config_TackleFail: margin -> outcome, when ATTACK wins ----
+  // open_play 70%, throwin_attack 11%, corner 7%, foul 7%, penalty 5%.
+  var ctf = ss.getSheetByName('Config_TackleFail') || ss.insertSheet('Config_TackleFail');
+  if (ctf.getLastRow() === 0) {
+    ctf.appendRow(['MarginMin', 'MarginMax', 'Outcome']);
+    ctf.getRange('A1:C1').setFontWeight('bold');
+    ctf.getRange(2, 1, 5, 3).setValues([
+      [1, 69, 'open_play'], [70, 80, 'throwin_attack'], [81, 87, 'corner'],
+      [88, 94, 'foul'], [95, 99, 'penalty']
+    ]);
+  }
+
+  // ---- Config_Shoot_* : one table per ShootType (open_play/penalty/
+  // corner/freekick), each holding BOTH 'success' (shooter wins) and
+  // 'fail' (GK wins) rows, margin 1-99 independently within each Result.
+  // Content ported from Dini's earlier Whitsbury football system —
+  // her original d10-value rows are redistributed into even margin
+  // ranges here (the specific dice numbers don't carry over, just the
+  // relative variety and, for Fail rows, who recovers the loose ball).
+  // Fully editable live in the Sheet, no redeploy needed — add/remove/
+  // reword rows freely; evenMarginRanges() just needs each Result's
+  // rows to be re-spread whenever the count changes (setupSheets() only
+  // writes these once, so re-running it after an edit won't overwrite).
+  setupShootConfig(ss, SHOOT_CONFIG_SHEETS.penalty,
+    [
+      g('{kiper} menyentuh bola dengan ujung jari namun bola tetap masuk ke gawang. Gol!'),
+      g('{pemain} menendang mendatar ke sudut bawah gawang. Gol!'),
+      g('{pemain} menendang ke sudut atas gawang. Gol!'),
+      g('{pemain} menendang telak ke bagian tengah gawang. Gol!')
+    ],
+    [
+      s('{kiper} menangkap bola.'),
+      s('{kiper} menepis bola. Bola dihalau ke pinggir lapangan oleh {opponent}.'),
+      s('Tendangan {pemain} meleset ke atas/sisi gawang.'),
+      s('Tendangan {pemain} membentur mistar dan dihalau {opponent} ke tengah lapangan. Bola diambil alih {tim_bertahan}.'),
+      s('Tendangan {pemain} membentur mistar dan dihalau {opponent} ke tengah lapangan. Bola diambil alih {tim_penyerang}.', 'shooter'),
+      s('Tendangan {pemain} membentur tiang gawang dan bola berhasil ditangkap oleh {kiper}.')
+    ]);
+
+  setupShootConfig(ss, SHOOT_CONFIG_SHEETS.corner,
+    [
+      g('{pemain} melakukan bicycle kick dari dalam kotak penalti dan gol!'),
+      g('{opponent} mencetak gol bunuh diri!'),
+      g('{pemain} menyundul bola ke gawang dan gol!'),
+      g('{pemain} mencetak gol dari dalam kotak penalti setelah bola dihalau oleh {opponent}!'),
+      g('{pemain} mencetak gol dari luar kotak penalti setelah bola dihalau oleh {opponent}!')
+    ],
+    [
+      s('Bola berhasil ditangkap oleh {kiper}.'),
+      s('{kiper} menepis bola. Bola dihalau ke pinggir lapangan oleh {opponent}.'),
+      s('Bola disundul/ditendang oleh {teammate} dan keluar lapangan. Goal kick untuk {tim_bertahan}.'),
+      s('Bola disundul/ditendang {teammate} keluar lapangan. Lemparan ke dalam oleh {opponent}.'),
+      s('{opponent} menghalau bola menjauh dari gawang dengan sundulan. Bola diambil alih {tim_bertahan}.'),
+      s('{opponent} menghalau bola menjauh dari gawang dengan sundulan. Bola diambil alih {tim_penyerang}.', 'shooter'),
+      s('{opponent} menghalau bola menjauh dari gawang dengan tendangan. Bola diambil alih {tim_bertahan}.'),
+      s('{opponent} menghalau bola menjauh dari gawang dengan tendangan. Bola diambil alih {tim_penyerang}.', 'shooter'),
+      s('Bola disundul {teammate} namun membentur mistar. Bola dihalau oleh {opponent}. Bola diambil alih {tim_bertahan}.'),
+      off('Offside. Goal kick untuk {tim_bertahan}.')
+    ]);
+
+  setupShootConfig(ss, SHOOT_CONFIG_SHEETS.freekick,
+    [
+      g('Tendangan {pemain} melengkung ke sudut atas gawang — dan gol!'),
+      g('Tendangan {pemain} melesat masuk ke sisi gawang. Gol!'),
+      g('{pemain} mencetak gol dengan sundulan setelah menerima bola hasil tendangan bebas langsung!'),
+      g('{pemain} menyundul bola ke gawang setelah tendangan {teammate} membentur mistar — dan gol!'),
+      g('{pemain} mencetak gol dengan tendangan setelah bola ditepis {opponent}!'),
+      g('{pemain} mencetak gol dengan sundulan setelah bola ditepis {opponent}!'),
+      g('{opponent} mencetak gol bunuh diri!')
+    ],
+    [
+      s('Bola berhasil ditangkap oleh {kiper}.'),
+      s('{kiper} menepis bola, dan bola dihalau ke pinggir lapangan oleh {opponent}. Lemparan ke dalam oleh {teammate}.', 'shooter'),
+      s('Bola disundul/ditendang {teammate} dan keluar lapangan. Goal kick untuk {tim_bertahan}.'),
+      s('{opponent} menghalau bola menjauh dari gawang dengan sundulan. Bola diambil alih {tim_bertahan}.'),
+      s('{opponent} menghalau bola menjauh dari gawang dengan sundulan. Bola diambil alih {tim_penyerang}.', 'shooter'),
+      s('{opponent} memblok dan menendang bola ke tengah lapangan. Bola diambil alih {tim_bertahan}.'),
+      s('{opponent} memblok dan menendang bola ke tengah lapangan. Bola diambil alih {tim_penyerang}.', 'shooter'),
+      s('Bola disundul/ditendang {teammate} dan keluar lapangan. Lemparan ke dalam oleh {opponent}.')
+    ]);
+
+  setupShootConfig(ss, SHOOT_CONFIG_SHEETS.open_play,
+    [
+      g('{pemain} berhasil melewati {opponent} dengan mencongkel bola melewati kepalanya — dan mencetak gol!'),
+      g('{pemain} mencongkel bola melewati kepala {kiper} — dan gol!'),
+      g('{pemain} mencetak gol setelah berhasil melewati dua pemain lawan!'),
+      g('{pemain} mencetak gol setelah melakukan operan satu-dua dengan {teammate}.'),
+      g('{pemain} menyundul bola ke gawang setelah tendangan {teammate} membentur mistar. Gol!'),
+      g('{pemain} lolos dari perangkap offside dan mencetak gol setelah mengecoh {kiper}.'),
+      g('{pemain} mencetak gol dengan tendangan setelah bola ditepis {kiper}.'),
+      g('Bola hasil tendangan {pemain} membentur bagian dalam tiang gawang sebelum masuk ke gawang. Gol!'),
+      g('{pemain} mencetak gol setelah menerima umpan silang dari {teammate}.'),
+      g('{pemain} mencetak gol setelah berhasil melewati {opponent}.'),
+      g('{pemain} mencetak gol setelah menerima umpan lambung dari {teammate}.'),
+      g('Bebas deskripsikan cara {pemain} mencetak gol.'),
+      g('{pemain} mencetak gol dengan assist {teammate}.'),
+      g('{pemain} melakukan tendangan keras dari luar kotak penalti. Bola melesat ke sisi/tengah gawang — dan gol!'),
+      g('{pemain} melakukan tendangan dari luar kotak penalti. Bola melesat ke sudut atas gawang — dan gol!'),
+      g('{opponent} mencetak gol bunuh diri.')
+    ],
+    [
+      s('Bola berhasil ditangkap oleh {kiper}.'),
+      s('{kiper} menepis bola, dan bola dihalau ke pinggir lapangan oleh {opponent}. Lemparan ke dalam oleh {teammate}.', 'shooter'),
+      s('Bola menabrak {teammate} dan keluar lapangan. Goal kick untuk {tim_bertahan}.'),
+      s('Bola menabrak {teammate} dan keluar lapangan. Lemparan ke dalam oleh {opponent}.'),
+      s('Tendangan meleset ke atas/samping gawang. Goal kick untuk {tim_bertahan}.'),
+      s('{opponent} menghalau bola menjauh dari gawang dengan tendangan. Bola diambil alih {tim_bertahan}.'),
+      s('{opponent} menghalau bola menjauh dari gawang dengan tendangan. Bola diambil alih {tim_penyerang}.', 'shooter'),
+      s('Tendangan {pemain} menabrak mistar dan diamankan oleh {kiper}.'),
+      s('Tendangan {pemain} menabrak tiang gawang dan bola diamankan oleh {kiper}.'),
+      off('Offside. Goal kick untuk {tim_bertahan}.')
+    ]);
+
+  // ---- Config_Incident: card/injury odds (fires only on foul/penalty) ----
+  // NOT numerically locked with Dini beyond "small"/"much smaller" — these
+  // are reasonable starting odds, fully editable here.
+  var ci = ss.getSheetByName('Config_Incident') || ss.insertSheet('Config_Incident');
+  if (ci.getLastRow() === 0) {
+    ci.appendRow(['ChanceYellow', 'ChanceRed', 'ChanceInjury', 'Notes']);
+    ci.getRange('A1:D1').setFontWeight('bold');
+    ci.getRange(2, 1, 1, 4).setValues([[0.12, 0.03, 0.08, 'Yellow/Red are mutually exclusive & checked first; Injury is independent.']]);
+  }
+
+  // ---- Config_PositionWeights: weighted-random pick odds ----
+  var cw = ss.getSheetByName('Config_PositionWeights') || ss.insertSheet('Config_PositionWeights');
+  if (cw.getLastRow() === 0) {
+    cw.appendRow(['Action', 'GK', 'DF', 'MF', 'FW']);
+    cw.getRange('A1:E1').setFontWeight('bold');
+    cw.getRange(2, 1, 5, 5).setValues([
+      ['dribble', 0, 33, 34, 33],
+      ['pass', 0, 33, 34, 33],
+      ['tackle', 0, 50, 30, 20],
+      ['interception', 0, 30, 50, 20],
+      ['shoot', 0, 20, 30, 50]
+    ]);
+  }
+
+  Logger.log('All sheets ready!');
+}
