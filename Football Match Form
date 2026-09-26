@@ -482,7 +482,7 @@
       var sideName = c.teamSide === 'A' ? (scoreData ? scoreData.schoolA : 'A') : (scoreData ? scoreData.schoolB : 'B');
       var item = document.createElement('div');
       item.className = 'fbf-dropdown-item';
-      item.textContent = c.characterName + ' — ' + sideName + (c.isNPC ? ' (NPC)' : '') + (c.injured ? ' [cedera]' : '');
+      item.textContent = c.characterName + ' (' + c.position + ') — ' + sideName + (c.isNPC ? ' (NPC)' : '') + (c.injured ? ' [cedera]' : '');
       item.onclick = function(e) { e.stopPropagation(); onCharacterSelected(c.characterName); };
       list.appendChild(item);
     });
@@ -967,12 +967,16 @@
     document.getElementById('fbf-' + prefix + '-action').textContent = actionText;
   }
 
-  // Phase 2: reveal that box's chosen style and animate its roll into place.
-  function revealBoxRoll(prefix, styleText, roll, duration, callback) {
+  // Phase 2: reveal that box's chosen style and animate its roll into
+  // place. bonus flags whether the credited character's position
+  // matched their action (DF+Tackle, MF+Interception, FW+Shoot) for the
+  // flat +10 rollForCharacter() already applied server-side — shown here
+  // as a badge next to the final roll, not applied again client-side.
+  function revealBoxRoll(prefix, styleText, roll, bonus, duration, callback) {
     var rps = document.getElementById('fbf-' + prefix + '-rps');
     rps.style.display = 'flex';
     document.getElementById('fbf-' + prefix + '-style').textContent = styleText;
-    rollAnim(document.getElementById('fbf-' + prefix + '-roll'), roll, duration);
+    rollAnim(document.getElementById('fbf-' + prefix + '-roll'), roll + (bonus ? ' 🌟' : ''), duration);
     setTimeout(callback, duration);
   }
 
@@ -1061,9 +1065,9 @@
 
     if (d.status === 'pending') {
       document.getElementById('fbf-row-opp').style.display = 'none';
-      showBoxIntro('mine', esc(d.myCharacter), 'is ' + (ACTION_ING[d.myAction] || 'rolling') + '...');
+      showBoxIntro('mine', esc(d.myCharacter) + ' (' + d.myPosition + ')', 'is ' + (ACTION_ING[d.myAction] || 'rolling') + '...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, d.myBonus, 2000, function() {
           var waiting = document.getElementById('fbf-waiting-text');
           waiting.style.display = 'block';
           waiting.textContent = 'Waiting for ' + esc(d.waitingFor==='A'?meta.schoolA:meta.schoolB) + ' to roll...';
@@ -1079,12 +1083,12 @@
     // 1) name + "is X-ing..." for the attacker's box, then the defender's.
     // 2) back to the attacker's box for style + dice, then the defender's.
     // 3) margin, then the succeed/fail headline, then the full narrative.
-    showBoxIntro('mine', esc(d.attack.character) + ' (' + esc(attSchool) + ')', 'is ' + ACTION_ING[d.attack.action] + '...');
+    showBoxIntro('mine', esc(d.attack.character) + ' (' + d.attack.position + ', ' + esc(attSchool) + ')', 'is ' + ACTION_ING[d.attack.action] + '...');
     setTimeout(function() {
-      showBoxIntro('opp', esc(d.defend.character) + ' (' + esc(defSchool) + ')', 'is ' + ACTION_ING[d.defend.action] + '...');
+      showBoxIntro('opp', esc(d.defend.character) + ' (' + d.defend.position + ', ' + esc(defSchool) + ')', 'is ' + ACTION_ING[d.defend.action] + '...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.attack.style] || '', d.attack.roll, 2000, function() {
-          revealBoxRoll('opp', STYLE_LABELS[d.defend.style] || '', d.defend.roll, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.attack.style] || '', d.attack.roll, d.attack.bonus, 2000, function() {
+          revealBoxRoll('opp', STYLE_LABELS[d.defend.style] || '', d.defend.roll, d.defend.bonus, 2000, function() {
             showMargin(d.margin);
             setTimeout(function() {
               showHeadline(contestHeadline(d));
@@ -1122,9 +1126,9 @@
 
     if (d.status === 'pending') {
       document.getElementById('fbf-row-opp').style.display = 'none';
-      showBoxIntro('mine', esc(d.myCharacter), 'is shooting...');
+      showBoxIntro('mine', esc(d.myCharacter) + ' (' + d.myPosition + ')', 'is shooting...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, d.myBonus, 2000, function() {
           var waiting = document.getElementById('fbf-waiting-text');
           waiting.style.display = 'block';
           waiting.textContent = 'Waiting for the opponent to roll...';
@@ -1134,12 +1138,12 @@
       return;
     }
 
-    showBoxIntro('mine', esc(d.shoot.character), 'is shooting...');
+    showBoxIntro('mine', esc(d.shoot.character) + ' (' + d.shoot.position + ')', 'is shooting...');
     setTimeout(function() {
-      showBoxIntro('opp', esc(d.save.character), 'is saving...');
+      showBoxIntro('opp', esc(d.save.character) + ' (' + d.save.position + ')', 'is saving...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.shoot.style] || '', d.shoot.roll, 2000, function() {
-          revealBoxRoll('opp', STYLE_LABELS[d.save.style] || '', d.save.roll, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.shoot.style] || '', d.shoot.roll, d.shoot.bonus, 2000, function() {
+          revealBoxRoll('opp', STYLE_LABELS[d.save.style] || '', d.save.roll, d.save.bonus, 2000, function() {
             showMargin(d.margin);
             setTimeout(function() {
               var headline = d.outcome === 'goal' ? 'GOAL! ⚽' : d.outcome === 'offside' ? 'Offside — no goal.' : 'Saved!';
