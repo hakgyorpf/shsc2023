@@ -420,33 +420,6 @@
     loadFormMatchData(code);
   }
 
-  function loadRoster(code) {
-    var xr = new XMLHttpRequest();
-    xr.open('GET', GAS + '?action=getRoster&matchCode=' + encodeURIComponent(code), true);
-    xr.onload = function() {
-      var d;
-      try {
-        d = JSON.parse(xr.responseText);
-      } catch (e) {
-        console.error('loadRoster: non-JSON response (status ' + xr.status + '):', xr.responseText);
-        showErr('Gagal memuat roster (respons server tidak valid). Coba muat ulang halaman.');
-        return;
-      }
-      if (d.error) {
-        console.error('loadRoster: server error:', d.error);
-        showErr('Gagal memuat roster: ' + d.error);
-        return;
-      }
-      rosterList = d.roster || [];
-      buildCharacterUI();
-    };
-    xr.onerror = function() {
-      console.error('loadRoster: network error contacting GAS');
-      showErr('Gagal menghubungi server untuk memuat roster.');
-    };
-    xr.send();
-  }
-
   function buildCharacterUI() {
     var field = document.getElementById('fbf-char-field');
     var list = document.getElementById('fbf-char-dropdown-list');
