@@ -1010,15 +1010,23 @@
     xr.timeout = 25000;
     xr.setRequestHeader('Content-Type', 'text/plain');
     xr.onload = function() {
-      try { cb(JSON.parse(xr.responseText)); }
-      catch(e) {
+      var parsed;
+      try {
+        parsed = JSON.parse(xr.responseText);
+      } catch (e) {
         // Log the raw body so a repeat of this error can actually be
         // diagnosed (e.g. an HTML auth/error page from Google instead of
         // JSON) instead of just showing a generic message every time.
         console.error('postGAS: non-JSON response (status ' + xr.status + '):', xr.responseText);
         hideRolling();
         showErr('Server mengembalikan respons yang tidak valid. Coba lagi.');
+        return;
       }
+      // cb() runs outside the try/catch above so a bug in the reveal
+      // rendering (e.g. a missing DOM element) surfaces as its own real
+      // error instead of being swallowed and misreported as a JSON/server
+      // problem when the response was actually fine.
+      cb(parsed);
     };
     xr.onerror = function() { hideRolling(); showErr('Koneksi ke server gagal.'); };
     xr.ontimeout = function() { hideRolling(); showErr('Server terlalu lama merespons. Coba lagi.'); };
