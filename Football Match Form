@@ -585,6 +585,20 @@
     return false;
   }
 
+  // Mirrors resolveSubmittedCharacter's GK lock the other way round: a GK
+  // can ONLY ever be credited for Save or Goal Kick, never Dribble/Pass/
+  // Tackle/Interception (including the forced Pass/Interception at
+  // kickoff/restart). Call this before rendering any button that would
+  // submit one of those — otherwise the roll animation plays and THEN
+  // the backend rejects it, which is confusing and wastes the player's
+  // time for a roll that could never have succeeded.
+  function blockGkFromAction(area, icField) {
+    if (!isCurCharacterGK()) return false;
+    area.innerHTML = '<div class="fbf-waitbox">Kiper hanya bisa roll Save atau Goal Kick. Pilih karakter lain (bukan kiper) untuk aksi ini.</div>';
+    icField.style.display = 'none';
+    return true;
+  }
+
   function renderStylePicker(area) {
     var wrap = document.createElement('div');
     wrap.className = 'fbf-style-row';
@@ -621,6 +635,7 @@
     // as any other roll: pick a style, then roll), not a separate step
     // before one.
     if (!d.teamInAttack) {
+      if (blockGkFromAction(area, icField)) return;
       icField.style.display = 'block';
       selectedStyle = '';
       renderStylePicker(area);
@@ -652,6 +667,7 @@
           icField.style.display = 'none';
           return;
         }
+        if (curSide === shootSide && blockGkFromAction(area, icField)) return;
         icField.style.display = 'block';
         selectedStyle = '';
         renderStylePicker(area);
@@ -663,6 +679,7 @@
         return;
       }
       if (curSide === shootSide) {
+        if (blockGkFromAction(area, icField)) return;
         icField.style.display = 'block';
         selectedStyle = '';
         renderStylePicker(area);
@@ -716,6 +733,7 @@
         return;
       }
       var lockedAction = matchAction(d.pendingAction);
+      if (blockGkFromAction(area, icField)) return;
       icField.style.display = 'block';
       selectedStyle = '';
       renderStylePicker(area);
@@ -739,6 +757,7 @@
     if (d.goalKickPending) {
       var takingGoalKick = curSide === d.teamInAttack;
       if (!takingGoalKick) {
+        if (blockGkFromAction(area, icField)) return;
         var waitSchool = d.teamInAttack === 'A' ? d.schoolA : d.schoolB;
         area.innerHTML = '<div class="fbf-waitbox">Menunggu ' + esc(waitSchool) + ' melakukan Goal Kick...</div>';
         icField.style.display = 'none';
@@ -769,6 +788,7 @@
     // dribble or tackle — forced into Pass (attack) / Interception
     // (defend), same as the server enforces regardless of what's sent.
     if (d.kickoffPending) {
+      if (blockGkFromAction(area, icField)) return;
       var koNote = document.createElement('div');
       koNote.className = 'fbf-note';
       koNote.style.marginBottom = '0.5rem';
@@ -785,6 +805,7 @@
       return;
     }
 
+    if (blockGkFromAction(area, icField)) return;
     selectedStyle = '';
     var options = myRole === 'attack' ? ['dribble','pass'] : ['tackle','interception'];
     var rowDiv = document.createElement('div');
