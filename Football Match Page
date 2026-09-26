@@ -306,7 +306,7 @@
     document.getElementById('fbm-board-wrap').innerHTML = html;
   }
 
-  var ACTION_LABELS = { dribble: 'Dribble', pass: 'Pass', tackle: 'Tackle', interception: 'Interception' };
+  var ACTION_LABELS = { dribble: 'Dribble', pass: 'Pass', tackle: 'Tackle', interception: 'Interception', goalkick: 'Goal Kick' };
   var OUTCOME_LABEL = {
     open_play: 'Open play', throwin_attack: 'Throw-in', throwin_defend: 'Throw-in',
     goalkick: 'Goal kick', corner: 'Corner kick!', foul: 'Pelanggaran — Free kick', penalty: 'PENALTI!!'
