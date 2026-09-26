@@ -171,7 +171,7 @@
   <div class="fbf-guide">
     <div class="fbf-guide-title">Panduan Mengisi Form</div>
     <ul class="fbf-guide-list">
-      <li>Pilih pertandingan, lalu pilih <b>nama karaktermu</b> dari roster tim. Sistem akan mengecek apakah akunmu yang login memang berhak roll sebagai karakter itu (akun terdaftar di roster, atau proxy yang diizinkan). Karakter yang tampil di deskripsi hasil roll dipilih otomatis oleh sistem berdasarkan posisi — bukan kamu yang memilih karakternya, "Nama Karakter" di atas cuma untuk validasi akses.</li>
+      <li>Pilih pertandingan, lalu pilih <b>nama karaktermu</b> dari roster tim. Sistem akan mengecek apakah akunmu yang login memang berhak roll sebagai karakter itu (akun terdaftar di roster, atau proxy yang diizinkan). Karakter yang kamu pilih itulah yang akan tampil di deskripsi hasil roll dan yang benar-benar melakukan aksinya — pilih karakter yang posisinya cocok dengan aksi (misalnya DF untuk Tackle, MF untuk Interception, FW untuk Shoot) supaya dapat bonus posisi.</li>
       <li>Saat timmu sedang <b>menyerang</b>, kamu bisa memilih Dribble atau Pass. Saat sedang <b>bertahan</b>, kamu memilih Tackle atau Interception — kecuali lawanmu sudah lebih dulu roll, di mana aksimu otomatis mengikuti aksi mereka (kamu tinggal roll).</li>
       <li>Setiap roll — open-play maupun Shoot/Save — kamu juga memilih gaya main: <b>Pace</b>, <b>Power</b>, atau <b>Skill</b>. Pace mengalahkan Power, Power mengalahkan Skill, Skill mengalahkan Pace — gaya ini yang menentukan siapa menang duel. Kalau kedua tim pilih gaya yang sama, roll tertinggi yang menang (seperti biasa).</li>
       <li>Kick off dan restart (mulai babak/extra time) selalu diawali Pass melawan Interception — belum bisa dribble sebelum operan pertama itu selesai.</li>
@@ -365,26 +365,44 @@
     var x2 = new XMLHttpRequest();
     x2.open('GET', GAS + '?action=getMatches', true);
     x2.onload = function() {
+      var d;
       try {
-        var d = JSON.parse(x2.responseText);
-        var list = document.getElementById('fbf-dropdown-list');
-        list.innerHTML = '';
-        var matches = d.matches || [];
-        if (matches.length === 0) {
-          var e = document.createElement('div'); e.className = 'fbf-dropdown-item empty'; e.textContent = 'Tidak ada pertandingan yang sedang berlangsung.'; list.appendChild(e);
-        }
-        matches.forEach(function(m) {
-          matchMeta[m.code] = m;
-          var tag = ' [' + (m.matchType || 'PvNPC') + ']';
-          var label = m.code + ' — ' + m.schoolA + ' vs ' + m.schoolB + tag;
-          var item = document.createElement('div');
-          item.className = 'fbf-dropdown-item';
-          item.setAttribute('data-code', m.code);
-          item.textContent = label;
-          item.onclick = function(e) { e.stopPropagation(); onMatchSelected(m.code, label); };
-          list.appendChild(item);
-        });
-      } catch(e) {}
+        d = JSON.parse(x2.responseText);
+      } catch (e) {
+        // Same class of bug postGAS() used to have: silently swallowing
+        // this meant a real failure here (deployment/auth/quota issue,
+        // or a genuine bug) looked EXACTLY like "no matches yet" — no
+        // way to tell them apart. Log the raw body and say so instead.
+        console.error('loadMatches: non-JSON response (status ' + x2.status + '):', x2.responseText);
+        showErr('Gagal memuat daftar pertandingan (respons server tidak valid). Coba muat ulang halaman.');
+        return;
+      }
+      if (d.error) {
+        console.error('loadMatches: server error:', d.error);
+        showErr('Gagal memuat daftar pertandingan: ' + d.error);
+        return;
+      }
+      var list = document.getElementById('fbf-dropdown-list');
+      list.innerHTML = '';
+      var matches = d.matches || [];
+      if (matches.length === 0) {
+        var e = document.createElement('div'); e.className = 'fbf-dropdown-item empty'; e.textContent = 'Tidak ada pertandingan yang sedang berlangsung.'; list.appendChild(e);
+      }
+      matches.forEach(function(m) {
+        matchMeta[m.code] = m;
+        var tag = ' [' + (m.matchType || 'PvNPC') + ']';
+        var label = m.code + ' — ' + m.schoolA + ' vs ' + m.schoolB + tag;
+        var item = document.createElement('div');
+        item.className = 'fbf-dropdown-item';
+        item.setAttribute('data-code', m.code);
+        item.textContent = label;
+        item.onclick = function(e) { e.stopPropagation(); onMatchSelected(m.code, label); };
+        list.appendChild(item);
+      });
+    };
+    x2.onerror = function() {
+      console.error('loadMatches: network error contacting GAS');
+      showErr('Gagal menghubungi server untuk memuat daftar pertandingan.');
     };
     x2.send();
   }
@@ -407,11 +425,25 @@
     var xr = new XMLHttpRequest();
     xr.open('GET', GAS + '?action=getRoster&matchCode=' + encodeURIComponent(code), true);
     xr.onload = function() {
+      var d;
       try {
-        var d = JSON.parse(xr.responseText);
-        rosterList = d.roster || [];
-        buildCharacterUI();
-      } catch(e) {}
+        d = JSON.parse(xr.responseText);
+      } catch (e) {
+        console.error('loadRoster: non-JSON response (status ' + xr.status + '):', xr.responseText);
+        showErr('Gagal memuat roster (respons server tidak valid). Coba muat ulang halaman.');
+        return;
+      }
+      if (d.error) {
+        console.error('loadRoster: server error:', d.error);
+        showErr('Gagal memuat roster: ' + d.error);
+        return;
+      }
+      rosterList = d.roster || [];
+      buildCharacterUI();
+    };
+    xr.onerror = function() {
+      console.error('loadRoster: network error contacting GAS');
+      showErr('Gagal menghubungi server untuk memuat roster.');
     };
     xr.send();
   }
@@ -422,15 +454,35 @@
     list.innerHTML = '';
     if (!curMatch) { field.style.display = 'none'; return; }
     field.style.display = 'block';
-    if (rosterList.length === 0) {
+    // NPC characters can only ever be rolled for by the admin account
+    // (resolveCharacterAccess rejects anyone else naming one) — hidden
+    // entirely for a regular player, since selecting one always fails.
+    // Even for admin, in a PvNPC match the fully-NPC OPPOSING school
+    // (everyone NOT on scoreData.humanSide) is always auto-resolved by
+    // the system and can never be manually rolled by anyone, admin
+    // included — those stay hidden too. NPC teammates on the human
+    // ("P") school's own mixed roster stay visible for admin, since
+    // that's a real, submittable roll. NPCvNPC has no "P school" at
+    // all (humanSide is blank there), so admin keeps seeing every NPC
+    // on either side — that match type only works by admin picking one.
+    var isAdmin = loggedInUsername === 'Seonbi';
+    var visibleRoster = rosterList.filter(function(c) {
+      if (!c.isNPC) return true;
+      if (!isAdmin) return false;
+      if (scoreData && scoreData.matchType === 'PvNPC' && scoreData.humanSide) {
+        return c.teamSide === scoreData.humanSide;
+      }
+      return true;
+    });
+    if (visibleRoster.length === 0) {
       var e = document.createElement('div'); e.className = 'fbf-dropdown-item empty'; e.textContent = 'Belum ada karakter terdaftar di roster.'; list.appendChild(e);
       return;
     }
-    rosterList.forEach(function(c) {
+    visibleRoster.forEach(function(c) {
       var sideName = c.teamSide === 'A' ? (scoreData ? scoreData.schoolA : 'A') : (scoreData ? scoreData.schoolB : 'B');
       var item = document.createElement('div');
       item.className = 'fbf-dropdown-item';
-      item.textContent = c.characterName + ' — ' + sideName + (c.isNPC ? ' (NPC)' : '') + (c.injured ? ' [cedera]' : '');
+      item.textContent = c.characterName + ' (' + c.position + ') — ' + sideName + (c.isNPC ? ' (NPC)' : '') + (c.injured ? ' [cedera]' : '');
       item.onclick = function(e) { e.stopPropagation(); onCharacterSelected(c.characterName); };
       list.appendChild(item);
     });
@@ -462,10 +514,16 @@
         curSide = d.side;
         statusEl.textContent = '';
         buildActionArea(scoreData);
-      } catch(e) {
+      } catch (e) {
+        console.error('onCharacterSelected: checkAccess failed (status ' + xa.status + '):', xa.responseText, e);
         statusEl.textContent = 'Gagal mengecek akses. Coba lagi.';
         statusEl.style.color = 'var(--card-red)';
       }
+    };
+    xa.onerror = function() {
+      console.error('onCharacterSelected: network error contacting GAS');
+      statusEl.textContent = 'Gagal menghubungi server. Coba lagi.';
+      statusEl.style.color = 'var(--card-red)';
     };
     xa.send();
   }
@@ -484,8 +542,15 @@
     var x3 = new XMLHttpRequest();
     x3.open('GET', GAS + '?action=getScore&matchCode=' + encodeURIComponent(code), true);
     x3.onload = function() {
+      var d;
       try {
-        var d = JSON.parse(x3.responseText);
+        d = JSON.parse(x3.responseText);
+      } catch (e) {
+        console.error('loadScore: non-JSON response (status ' + x3.status + '):', x3.responseText);
+        box.innerHTML = 'Gagal memuat status match (respons server tidak valid). Coba muat ulang halaman.';
+        return;
+      }
+      try {
         if (d.error) { box.innerHTML = d.error; return; }
         scoreData = d;
         var html = '<div class="fbf-score-badges">';
@@ -512,7 +577,17 @@
 
         if (rebuildSideUI) buildCharacterUI();
         buildActionArea(d);
-      } catch(e) {}
+      } catch (e) {
+        // A rendering bug here would otherwise leave the box stuck on
+        // "Loading match state..." forever with no clue why — same
+        // silent-failure class as everywhere else in this file.
+        console.error('loadScore: render error:', e);
+        box.innerHTML = 'Gagal menampilkan status match. Coba muat ulang halaman. (' + e.message + ')';
+      }
+    };
+    x3.onerror = function() {
+      console.error('loadScore: network error contacting GAS');
+      box.innerHTML = 'Gagal menghubungi server untuk memuat status match.';
     };
     x3.send();
   }
@@ -528,6 +603,20 @@
       if (rosterList[i].characterName === curCharacterName) return rosterList[i].position === 'GK';
     }
     return false;
+  }
+
+  // Mirrors resolveSubmittedCharacter's GK lock the other way round: a GK
+  // can ONLY ever be credited for Save or Goal Kick, never Dribble/Pass/
+  // Tackle/Interception (including the forced Pass/Interception at
+  // kickoff/restart). Call this before rendering any button that would
+  // submit one of those — otherwise the roll animation plays and THEN
+  // the backend rejects it, which is confusing and wastes the player's
+  // time for a roll that could never have succeeded.
+  function blockGkFromAction(area, icField) {
+    if (!isCurCharacterGK()) return false;
+    area.innerHTML = '<div class="fbf-waitbox">Kiper hanya bisa roll Save atau Goal Kick. Pilih karakter lain (bukan kiper) untuk aksi ini.</div>';
+    icField.style.display = 'none';
+    return true;
   }
 
   function renderStylePicker(area) {
@@ -566,6 +655,7 @@
     // as any other roll: pick a style, then roll), not a separate step
     // before one.
     if (!d.teamInAttack) {
+      if (blockGkFromAction(area, icField)) return;
       icField.style.display = 'block';
       selectedStyle = '';
       renderStylePicker(area);
@@ -597,6 +687,7 @@
           icField.style.display = 'none';
           return;
         }
+        if (curSide === shootSide && blockGkFromAction(area, icField)) return;
         icField.style.display = 'block';
         selectedStyle = '';
         renderStylePicker(area);
@@ -608,6 +699,7 @@
         return;
       }
       if (curSide === shootSide) {
+        if (blockGkFromAction(area, icField)) return;
         icField.style.display = 'block';
         selectedStyle = '';
         renderStylePicker(area);
@@ -661,6 +753,7 @@
         return;
       }
       var lockedAction = matchAction(d.pendingAction);
+      if (blockGkFromAction(area, icField)) return;
       icField.style.display = 'block';
       selectedStyle = '';
       renderStylePicker(area);
@@ -684,6 +777,7 @@
     if (d.goalKickPending) {
       var takingGoalKick = curSide === d.teamInAttack;
       if (!takingGoalKick) {
+        if (blockGkFromAction(area, icField)) return;
         var waitSchool = d.teamInAttack === 'A' ? d.schoolA : d.schoolB;
         area.innerHTML = '<div class="fbf-waitbox">Menunggu ' + esc(waitSchool) + ' melakukan Goal Kick...</div>';
         icField.style.display = 'none';
@@ -714,6 +808,7 @@
     // dribble or tackle — forced into Pass (attack) / Interception
     // (defend), same as the server enforces regardless of what's sent.
     if (d.kickoffPending) {
+      if (blockGkFromAction(area, icField)) return;
       var koNote = document.createElement('div');
       koNote.className = 'fbf-note';
       koNote.style.marginBottom = '0.5rem';
@@ -730,6 +825,7 @@
       return;
     }
 
+    if (blockGkFromAction(area, icField)) return;
     selectedStyle = '';
     var options = myRole === 'attack' ? ['dribble','pass'] : ['tackle','interception'];
     var rowDiv = document.createElement('div');
@@ -871,12 +967,16 @@
     document.getElementById('fbf-' + prefix + '-action').textContent = actionText;
   }
 
-  // Phase 2: reveal that box's chosen style and animate its roll into place.
-  function revealBoxRoll(prefix, styleText, roll, duration, callback) {
+  // Phase 2: reveal that box's chosen style and animate its roll into
+  // place. bonus flags whether the credited character's position
+  // matched their action (DF+Tackle, MF+Interception, FW+Shoot) for the
+  // flat +10 rollForCharacter() already applied server-side — shown here
+  // as a badge next to the final roll, not applied again client-side.
+  function revealBoxRoll(prefix, styleText, roll, bonus, duration, callback) {
     var rps = document.getElementById('fbf-' + prefix + '-rps');
     rps.style.display = 'flex';
     document.getElementById('fbf-' + prefix + '-style').textContent = styleText;
-    rollAnim(document.getElementById('fbf-' + prefix + '-roll'), roll, duration);
+    rollAnim(document.getElementById('fbf-' + prefix + '-roll'), roll + (bonus ? ' 🌟' : ''), duration);
     setTimeout(callback, duration);
   }
 
@@ -965,9 +1065,9 @@
 
     if (d.status === 'pending') {
       document.getElementById('fbf-row-opp').style.display = 'none';
-      showBoxIntro('mine', esc(d.myCharacter), 'is ' + (ACTION_ING[d.myAction] || 'rolling') + '...');
+      showBoxIntro('mine', esc(d.myCharacter) + ' (' + d.myPosition + ')', 'is ' + (ACTION_ING[d.myAction] || 'rolling') + '...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, d.myBonus, 2000, function() {
           var waiting = document.getElementById('fbf-waiting-text');
           waiting.style.display = 'block';
           waiting.textContent = 'Waiting for ' + esc(d.waitingFor==='A'?meta.schoolA:meta.schoolB) + ' to roll...';
@@ -983,17 +1083,18 @@
     // 1) name + "is X-ing..." for the attacker's box, then the defender's.
     // 2) back to the attacker's box for style + dice, then the defender's.
     // 3) margin, then the succeed/fail headline, then the full narrative.
-    showBoxIntro('mine', esc(d.attack.character) + ' (' + esc(attSchool) + ')', 'is ' + ACTION_ING[d.attack.action] + '...');
+    showBoxIntro('mine', esc(d.attack.character) + ' (' + d.attack.position + ', ' + esc(attSchool) + ')', 'is ' + ACTION_ING[d.attack.action] + '...');
     setTimeout(function() {
-      showBoxIntro('opp', esc(d.defend.character) + ' (' + esc(defSchool) + ')', 'is ' + ACTION_ING[d.defend.action] + '...');
+      showBoxIntro('opp', esc(d.defend.character) + ' (' + d.defend.position + ', ' + esc(defSchool) + ')', 'is ' + ACTION_ING[d.defend.action] + '...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.attack.style] || '', d.attack.roll, 2000, function() {
-          revealBoxRoll('opp', STYLE_LABELS[d.defend.style] || '', d.defend.roll, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.attack.style] || '', d.attack.roll, d.attack.bonus, 2000, function() {
+          revealBoxRoll('opp', STYLE_LABELS[d.defend.style] || '', d.defend.roll, d.defend.bonus, 2000, function() {
             showMargin(d.margin);
             setTimeout(function() {
               showHeadline(contestHeadline(d));
               setTimeout(function() {
-                var detail = contestNarrative(d, meta);
+                var progressSchool = esc(d.teamProgressed === 'A' ? meta.schoolA : meta.schoolB);
+                var detail = '<b>+' + d.progressGained + ' progress for ' + progressSchool + '</b><br>' + contestNarrative(d, meta);
                 if (d.incident && d.incident.cardTier) {
                   detail += '<br>[' + d.incident.cardTier + ' Card] ' + esc(d.incident.cardCharacter);
                 }
@@ -1025,9 +1126,9 @@
 
     if (d.status === 'pending') {
       document.getElementById('fbf-row-opp').style.display = 'none';
-      showBoxIntro('mine', esc(d.myCharacter), 'is shooting...');
+      showBoxIntro('mine', esc(d.myCharacter) + ' (' + d.myPosition + ')', 'is shooting...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, d.myBonus, 2000, function() {
           var waiting = document.getElementById('fbf-waiting-text');
           waiting.style.display = 'block';
           waiting.textContent = 'Waiting for the opponent to roll...';
@@ -1037,12 +1138,12 @@
       return;
     }
 
-    showBoxIntro('mine', esc(d.shoot.character), 'is shooting...');
+    showBoxIntro('mine', esc(d.shoot.character) + ' (' + d.shoot.position + ')', 'is shooting...');
     setTimeout(function() {
-      showBoxIntro('opp', esc(d.save.character), 'is saving...');
+      showBoxIntro('opp', esc(d.save.character) + ' (' + d.save.position + ')', 'is saving...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.shoot.style] || '', d.shoot.roll, 2000, function() {
-          revealBoxRoll('opp', STYLE_LABELS[d.save.style] || '', d.save.roll, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.shoot.style] || '', d.shoot.roll, d.shoot.bonus, 2000, function() {
+          revealBoxRoll('opp', STYLE_LABELS[d.save.style] || '', d.save.roll, d.save.bonus, 2000, function() {
             showMargin(d.margin);
             setTimeout(function() {
               var headline = d.outcome === 'goal' ? 'GOAL! ⚽' : d.outcome === 'offside' ? 'Offside — no goal.' : 'Saved!';

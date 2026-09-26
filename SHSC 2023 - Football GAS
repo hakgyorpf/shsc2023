@@ -100,7 +100,8 @@
 //   PvNPC (human team vs NPC team)
 //     - 30-MINUTE COOLDOWN per submitting writer, between contest rolls
 //       only (checkPvNPCCooldown) — a shot chance you've already
-//       earned is never blocked by this.
+//       earned is never blocked by this, and neither is a registered
+//       GK's own Goal Kick (same exemption as their daily cap below).
 //     - 5 ROLLS PER CHARACTER PER CALENDAR DAY (resets 00:00 WIB), counting
 //       contest rolls AND shots together (checkPvNPCDailyCap) — keyed off
 //       the named character (data.characterName), not the writer's
@@ -896,6 +897,14 @@ function isSideAllNPC(matchCode, side) {
 // ============================================================
 
 function checkPvNPCCooldown(matchCode, characterName) {
+  // Registered GKs are exempt, same reasoning as the daily cap: a GK's
+  // only RollLog-logged action is Goal Kick (Save goes through ShootLog
+  // via submitShoot, which never calls this at all), and it's a forced
+  // restart, not a roll they chose to spend — the cooldown shouldn't be
+  // able to leave a keeper unable to take their OWN next goal kick.
+  var rosterChar = findRosterCharacter(matchCode, characterName);
+  if (rosterChar && rosterChar.position === 'GK') return { blocked: false };
+
   var rows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
   var lastTs = null;
   for (var i = rows.length - 1; i >= 1; i--) {
@@ -1954,19 +1963,22 @@ function startExtraTime(data) {
 }
 
 // ============================================================
-// AUTO-RESOLVE FOR STALE PvP TURNS — PvP ONLY. PvNPC and NPCvNPC both
-// resolve fully within a single submitRoll/submitShoot call (see RULES
-// BY MATCH TYPE at the top of this file), so they never leave a roll
-// pending and none of this applies to them.
+// AUTO-RESOLVE FOR STALE TURNS.
 //   - Contest OR shoot/save, one side already answered, other side
-//     silent 24h+: autoFillContest()/autoFillShoot() fill the missing
-//     side with a degraded 1d50 (no position bonus), same spirit as the
-//     other sports' stale-turn fallback.
+//     silent 24h+: PvP ONLY (PvNPC/NPCvNPC resolve fully within a single
+//     submitRoll/submitShoot call — see RULES BY MATCH TYPE at the top
+//     of this file — so they never leave either of these pending).
+//     autoFillContest()/autoFillShoot() fill the missing side with a
+//     degraded 1d50 (no position bonus), same spirit as the other
+//     sports' stale-turn fallback.
 //   - Goal kick, NOBODY has rolled at all, silent 6h+ (GOALKICK_STALE_
-//     HOURS): autoFillGoalKick() resolves the whole exchange itself —
-//     1d50 for the GK's side, 1d100 for the opponent, no style/RPS.
-//     Shorter fuse than the other two because the entire match is
-//     blocked on this one roll, not just one contest.
+//     HOURS): PvP AND PvNPC (NPCvNPC excluded — admin controls both
+//     sides directly, nothing to be "stuck" waiting on). autoFillGoalKick()
+//     resolves the whole exchange itself — 1d50 for the GK's side, 1d100
+//     for the opponent, no style/RPS. Shorter fuse than the other two
+//     because the entire match is blocked on this one roll, not just one
+//     contest — and PvNPC needs this fallback just as much as PvP does,
+//     since a human still has to actually press the button either way.
 // ============================================================
 
 function checkStaleFootballTurns() {
@@ -1977,33 +1989,42 @@ function checkStaleFootballTurns() {
 
   for (var i = 1; i < rows.length; i++) {
     var r = rows[i];
-    if (r[7] !== 'PvP' || r[6] === 'finished') continue;
+    if (r[6] === 'finished') continue;
+    var matchType = r[7];
     var found = { row: i + 1, data: r, sheet: ms };
 
-    // Stale open-play contest.
-    if (r[18] && r[26]) {
-      var waitedContest = (now - new Date(r[26])) / (1000 * 60 * 60);
-      if (waitedContest >= 24) {
-        autoFillContest(found);
-      }
-    }
-    // Stale shoot/save.
-    else if (r[29] && r[36]) {
-      var waitedShoot = (now - new Date(r[36])) / (1000 * 60 * 60);
-      if (waitedShoot >= 24) {
-        autoFillShoot(found);
+    // Stale open-play contest / stale shoot-save — PvP only. PvNPC and
+    // NPCvNPC never leave either of THESE pending (see RULES BY MATCH
+    // TYPE at top): a submission there resolves both sides in one call.
+    if (matchType === 'PvP') {
+      if (r[18] && r[26]) {
+        var waitedContest = (now - new Date(r[26])) / (1000 * 60 * 60);
+        if (waitedContest >= 24) {
+          autoFillContest(found);
+        }
+      } else if (r[29] && r[36]) {
+        var waitedShoot = (now - new Date(r[36])) / (1000 * 60 * 60);
+        if (waitedShoot >= 24) {
+          autoFillShoot(found);
+        }
       }
     }
 
-    // Stale goal kick — separate from the two above, and only while
-    // NOBODY has rolled into it yet (r[18] empty): the moment the GK
-    // actually takes it, that becomes an ordinary pending contest waiting
-    // on the opponent's Interception, already covered by the "Stale
-    // open-play contest" branch above. This one is on a much shorter
-    // fuse than the general 24h fallback: nothing else in the match can
-    // happen until the goal kick is taken, so the whole match would
-    // otherwise sit blocked that long on one missing GK roll.
-    if (r[46] && r[47] && !r[18]) {
+    // Stale goal kick — PvP AND PvNPC (unlike the two above): a PvNPC
+    // goal kick still needs the human to actually press the button (or,
+    // if it's the NPC side's own goal kick, needs the human to submit
+    // ANY next roll to trigger it), so it can sit just as blocked as a
+    // PvP one. NPCvNPC is excluded — admin controls both sides directly,
+    // there's no writer to be "stuck" waiting on.
+    // Separate from the two branches above, and only while NOBODY has
+    // rolled into it yet (r[18] empty, which is always true for PvNPC
+    // anyway): the moment a PvP GK actually takes it, that becomes an
+    // ordinary pending contest waiting on the opponent's Interception,
+    // already covered by the "Stale open-play contest" branch. On a much
+    // shorter fuse than the general 24h fallback: nothing else in the
+    // match can happen until the goal kick is taken, so the whole match
+    // would otherwise sit blocked that long on one missing GK roll.
+    if ((matchType === 'PvP' || matchType === 'PvNPC') && r[46] && r[47] && !r[18]) {
       var waitedGoalKick = (now - new Date(r[47])) / (1000 * 60 * 60);
       if (waitedGoalKick >= GOALKICK_STALE_HOURS) {
         autoFillGoalKick(found);
