@@ -1048,7 +1048,8 @@
             setTimeout(function() {
               showHeadline(contestHeadline(d));
               setTimeout(function() {
-                var detail = contestNarrative(d, meta);
+                var progressSchool = esc(d.teamProgressed === 'A' ? meta.schoolA : meta.schoolB);
+                var detail = '<b>+' + d.progressGained + ' progress for ' + progressSchool + '</b><br>' + contestNarrative(d, meta);
                 if (d.incident && d.incident.cardTier) {
                   detail += '<br>[' + d.incident.cardTier + ' Card] ' + esc(d.incident.cardCharacter);
                 }
