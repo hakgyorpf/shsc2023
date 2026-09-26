@@ -518,7 +518,8 @@ function getRollLog(matchCode, limit) {
       cardTier: rows[i][23] || '', cardSide: rows[i][24] || '', cardCharacter: rows[i][25] || '',
       injuryOccurred: !!rows[i][26], injuredCharacter: rows[i][27] || '',
       icLine: rows[i][28] || '', autoResolved: !!rows[i][29], rollId: rows[i][30] || '',
-      styleAttack: rows[i][31] || '', styleDefend: rows[i][32] || '', rpsResult: rows[i][33] || ''
+      styleAttack: rows[i][31] || '', styleDefend: rows[i][32] || '', rpsResult: rows[i][33] || '',
+      flavorTeammate: rows[i][34] || ''
     });
   }
   list.reverse();
@@ -1547,10 +1548,20 @@ function resolveContest(found, attackSide, defendSide, attackData, defendData, s
   found.sheet.getRange(found.row, 44).setValue(false); // KickoffPending — the restart pass is done now
   found.sheet.getRange(found.row, 47, 1, 2).setValues([[goalKickPending, goalKickPending ? new Date().toISOString() : '']]); // GoalKickPending, GoalKickPendingSince
 
+  // Flavor only (doesn't affect scoring) — the Match Page feed narrates an
+  // Interception as "intercepted X's pass to TEAMMATE"; pick that
+  // teammate once here (same non-weighted pickFlavorCharacter the Shoot
+  // flavor templates already use for {teammate}/{opponent}) and persist
+  // it in RollLog so every future view of this roll shows the same name,
+  // instead of re-randomizing on every page load.
+  var flavorTeammate = defendData.action === 'interception'
+    ? pickFlavorCharacter(m[0], attackData.side, [attackData.character])
+    : '';
+
   var rollId = Utilities.getUuid().slice(0, 8);
   appendRollLogRow(m[0], submittedBy, m[8], halfMinute, attackData, defendData, margin,
     attackWins ? 'attack' : 'defend', progressGained, winnerSide, outcome, newTeamInAttack,
-    incident, icLine, autoResolved, rollId, rps);
+    incident, icLine, autoResolved, rollId, rps, flavorTeammate);
 
   var halfOver = checkHalfBoundary(found, halfMinute);
 
@@ -1850,7 +1861,7 @@ function clearPendingShoot(found) {
 // LOGGING
 // ============================================================
 
-function appendRollLogRow(matchCode, submittedBy, phase, minute, attackData, defendData, margin, winner, progressGained, teamProgressed, outcome, newTeamInAttack, incident, icLine, autoResolved, rollId, rpsResult) {
+function appendRollLogRow(matchCode, submittedBy, phase, minute, attackData, defendData, margin, winner, progressGained, teamProgressed, outcome, newTeamInAttack, incident, icLine, autoResolved, rollId, rpsResult, flavorTeammate) {
   var row = [
     new Date(), matchCode, submittedBy, phase, minute,
     attackData.action, defendData.action,
@@ -1860,7 +1871,7 @@ function appendRollLogRow(matchCode, submittedBy, phase, minute, attackData, def
     incident ? incident.cardTier : '', incident ? incident.cardSide : '', incident ? incident.cardCharacter : '',
     incident ? incident.injuryOccurred : false, incident ? incident.injuredCharacter : '',
     icLine || '', autoResolved || false, rollId,
-    attackData.style || '', defendData.style || '', rpsResult || ''
+    attackData.style || '', defendData.style || '', rpsResult || '', flavorTeammate || ''
   ];
   getFootballSpreadsheet().getSheetByName('RollLog').appendRow(row);
 }
@@ -2194,9 +2205,9 @@ function setupSheets() {
       'DefendSide', 'RollDefend', 'CharacterDefend', 'PositionDefend', 'BonusDefend',
       'Margin', 'Winner', 'ProgressGained', 'TeamProgressed', 'Outcome', 'NewTeamInAttack',
       'CardTier', 'CardSide', 'CardCharacter', 'InjuryOccurred', 'InjuredCharacter',
-      'ICLine', 'AutoResolved', 'RollID', 'StyleAttack', 'StyleDefend', 'RPSResult'
+      'ICLine', 'AutoResolved', 'RollID', 'StyleAttack', 'StyleDefend', 'RPSResult', 'FlavorTeammate'
     ]);
-    rl.getRange(1, 1, 1, 34).setFontWeight('bold');
+    rl.getRange(1, 1, 1, 35).setFontWeight('bold');
   }
 
   var sl = ss.getSheetByName('ShootLog') || ss.insertSheet('ShootLog');

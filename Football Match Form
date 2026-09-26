@@ -976,7 +976,7 @@
     var rps = document.getElementById('fbf-' + prefix + '-rps');
     rps.style.display = 'flex';
     document.getElementById('fbf-' + prefix + '-style').textContent = styleText;
-    rollAnim(document.getElementById('fbf-' + prefix + '-roll'), roll + (bonus ? ' 🌟' : ''), duration);
+    rollAnim(document.getElementById('fbf-' + prefix + '-roll'), roll + (bonus ? ' 🌟 (+10)' : ''), duration);
     setTimeout(callback, duration);
   }
 

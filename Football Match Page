@@ -351,27 +351,34 @@
     penalty: function(att, def) { return 'PENALTI!! Tendangan penalti diberikan.'; }
   };
 
-  // Builds the 1-2 line narrative for a contest roll, mirroring the
-  // submission overlay's contestNarrative() but in Indonesian third
-  // person for the public feed.
+  // Builds a single combined narrative line for a contest roll, in
+  // Indonesian third person for the public feed (the submission
+  // overlay's own narration is deliberately English and separate).
+  // Tackle reads as a straight "won/failed to win the ball" — nobody
+  // else is involved, since Dribble has no target. Interception always
+  // names the teammate the ball was headed to (r.flavorTeammate, picked
+  // once server-side at resolve time so it's stable across views), since
+  // an interception is inherently about cutting off a pass to someone.
   function contestNarrative(r, attName, defName, attSchool, defSchool) {
     var defendWon = r.winner === 'defend';
-    var lines = [];
+    var isIntercept = r.actionDefend === 'interception';
+    var mate = r.flavorTeammate || 'rekan setimnya';
+    var mainClause;
     if (defendWon) {
-      var cleanVerb = r.actionDefend === 'interception'
-        ? ('Intersep bersih dari ' + defName + ' atas operan ' + attName)
-        : ('Tekel bersih dari ' + defName + ' terhadap ' + attName);
-      lines.push(cleanVerb + ' — ' + defSchool + ' kini menguasai bola.');
-      if (r.outcome && r.outcome !== 'open_play' && OUTCOME_CONTINUATION[r.outcome]) {
-        var note = OUTCOME_CONTINUATION[r.outcome](attSchool, defSchool);
-        lines.push(note.charAt(0).toUpperCase() + note.slice(1));
-      }
+      mainClause = isIntercept
+        ? (defName + ' merebut bola dari ' + attName + ' yang hendak mengoper ke ' + mate)
+        : (defName + ' merebut bola dari ' + attName);
     } else {
-      var verb = r.actionDefend === 'interception' ? 'gagal memotong operan' : 'gagal menekel';
-      var cont = OUTCOME_CONTINUATION[r.outcome] ? OUTCOME_CONTINUATION[r.outcome](attSchool, defSchool) : (attSchool + ' masih menguasai bola.');
-      lines.push(defName + ' ' + verb + ' ' + attName + ' — ' + cont);
+      mainClause = isIntercept
+        ? (defName + ' gagal memotong operan ' + attName + ' ke ' + mate)
+        : (defName + ' gagal menjegal ' + attName);
     }
-    return lines;
+    var clauses = [mainClause];
+    if (r.outcome && r.outcome !== 'open_play' && OUTCOME_CONTINUATION[r.outcome]) {
+      clauses.push(OUTCOME_CONTINUATION[r.outcome](attSchool, defSchool).replace(/\.$/, ''));
+    }
+    clauses.push(defendWon ? (defSchool + ' kini menguasai bola') : (attSchool + ' masih menguasai bola'));
+    return [clauses.join(' — ') + '.'];
   }
 
   // One side (name/style/roll column) of the duel row shared by both
@@ -396,15 +403,26 @@
     var progTeam = r.teamProgressed === 'A' ? meta.schoolA : meta.schoolB;
     var narrative = contestNarrative(r, r.characterAttack, r.characterDefend, attName, defName);
 
+    // Left column is always School A, right is always School B — same
+    // as the scoreboard and master grid above — regardless of which
+    // side is currently attacking/defending in THIS particular roll.
+    var attIsA = r.attackSide === 'A';
+    var aSide = attIsA
+      ? { name: r.characterAttack, bonus: r.bonusAttack, style: r.styleAttack, roll: r.rollAttack }
+      : { name: r.characterDefend, bonus: r.bonusDefend, style: r.styleDefend, roll: r.rollDefend };
+    var bSide = attIsA
+      ? { name: r.characterDefend, bonus: r.bonusDefend, style: r.styleDefend, roll: r.rollDefend }
+      : { name: r.characterAttack, bonus: r.bonusAttack, style: r.styleAttack, roll: r.rollAttack };
+
     var html = '<div class="fbm-event">';
     html += '<div class="fbm-event-header"><span class="fbm-event-minute">'+esc(fmtMinute(r.phase, r.minute))+'</span>';
     if (r.postedAt) html += '<span class="fbm-event-time">'+esc(r.postedAt)+'</span>';
     html += '</div>';
     if (r.icLine && !r.autoResolved) html += '<div class="fbm-event-ic">'+esc(r.icLine)+'</div>';
     html += '<div class="fbm-event-duel">';
-    html += eventSide(r.characterAttack, r.bonusAttack, r.styleAttack, r.rollAttack, 'left');
+    html += eventSide(aSide.name, aSide.bonus, aSide.style, aSide.roll, 'left');
     html += '<div class="fbm-event-vs">VS</div>';
-    html += eventSide(r.characterDefend, r.bonusDefend, r.styleDefend, r.rollDefend, 'right');
+    html += eventSide(bSide.name, bSide.bonus, bSide.style, bSide.roll, 'right');
     html += '</div>';
     if (r.cardTier === 'Red') html += '<div class="fbm-event-tag card-red">🟥 Kartu Merah — '+esc(r.cardCharacter)+'</div>';
     else if (r.cardTier === 'Yellow') html += '<div class="fbm-event-tag card-yellow">🟨 Kartu Kuning — '+esc(r.cardCharacter)+'</div>';
@@ -418,15 +436,23 @@
 
   function renderShootEvent(s) {
     var outcomeLabel = s.outcome === 'goal' ? 'GOL! ⚽' : s.outcome === 'offside' ? 'Offside — gol dianulir' : 'Diselamatkan!';
+    // Same School-A-left/School-B-right rule as renderRollEvent.
+    var shootIsA = s.shootSide === 'A';
+    var aSide = shootIsA
+      ? { name: s.characterShoot, bonus: s.bonusShoot, style: s.styleShoot, roll: s.rollShoot }
+      : { name: s.characterSave, bonus: false, style: s.styleSave, roll: s.rollSave };
+    var bSide = shootIsA
+      ? { name: s.characterSave, bonus: false, style: s.styleSave, roll: s.rollSave }
+      : { name: s.characterShoot, bonus: s.bonusShoot, style: s.styleShoot, roll: s.rollShoot };
     var html = '<div class="fbm-event">';
     html += '<div class="fbm-event-header"><span class="fbm-event-minute">'+esc(fmtMinute(s.phase, s.minute))+' · '+esc(SHOOT_TYPE_BADGE[s.shootType]||'SHOOT')+'</span>';
     if (s.postedAt) html += '<span class="fbm-event-time">'+esc(s.postedAt)+'</span>';
     html += '</div>';
     if (s.icLine && !s.autoResolved) html += '<div class="fbm-event-ic">'+esc(s.icLine)+'</div>';
     html += '<div class="fbm-event-duel">';
-    html += eventSide(s.characterShoot, s.bonusShoot, s.styleShoot, s.rollShoot, 'left');
+    html += eventSide(aSide.name, aSide.bonus, aSide.style, aSide.roll, 'left');
     html += '<div class="fbm-event-vs">VS</div>';
-    html += eventSide(s.characterSave, false, s.styleSave, s.rollSave, 'right');
+    html += eventSide(bSide.name, bSide.bonus, bSide.style, bSide.roll, 'right');
     html += '</div>';
     if (s.outcome === 'goal') html += '<div class="fbm-tag-goal">'+outcomeLabel+'</div>';
     html += '<div class="fbm-event-summary">'+(s.outcome!=='goal'?esc(outcomeLabel)+' · ':'')+'Margin <b>'+s.margin+'</b> · Skor <b>'+s.scoreAAfter+'–'+s.scoreBAfter+'</b></div>';
