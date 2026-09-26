@@ -1,10 +1,19 @@
 // ============================================================
 // GIROK — Football / Soccer System v1 (possession + progress)
-// Full-squad (11-a-side) simulation. Every roll is triggered by
-// ANY team member, but WHICH registered character is credited in
-// the description is chosen by the system (weighted-random by
-// position) — never by whoever clicked. GK is hard-locked out of
-// every action except Save.
+// Full-squad (11-a-side) simulation. Whoever submits a roll IS who
+// takes the action in the description — the credited character is
+// always the one named in the submission (Nama Karakter), never a
+// random pick. This is what lets a position's bonus (Config_
+// PositionWeights' old job is now just the NPC-side auto-pick — see
+// positionGetsBonus) actually matter: you choose which of your
+// characters rolls, so you can play a DF into Tackle for the bonus,
+// or spend a different character instead. The ONE place a character
+// is still picked FOR someone is the NPC side of a PvNPC/NPCvNPC
+// match (resolvePvNPCContest/resolvePvNPCShoot), which has no writer
+// to submit for it — that side still uses pickWeightedCharacter.
+// GK is hard-locked out of every action except Save and Goal Kick
+// (see resolveSubmittedCharacter) — enforced directly on the
+// submitted character now, not just by exclusion from a random pool.
 // ============================================================
 //
 // CORE LOOP (see comments throughout for the full rules):
@@ -33,7 +42,9 @@
 //     produced the current shoot trigger, and each has its OWN
 //     Config_Shoot_* description pool (see below) so the narration
 //     matches how the chance was created.
-//   - GK only ever rolls Save, only when the opponent shoots.
+//   - GK only ever rolls Save (opponent shoots) or Goal Kick (their own
+//     team's restart after the ball goes out for one — see GoalKickPending
+//     below). Every other action is off-limits to a GK character.
 //   - 1 roll = 1 match minute. Half = 45 rolls. Extra time (ties in
 //     knockout matches only) = 15 rolls per ET half. Penalty
 //     shootout mechanic intentionally NOT built yet (Dini's call —
@@ -71,27 +82,34 @@
 //       auto-fills the missing side with a degraded 1d50 roll (no
 //       position bonus) — see autoFillContest()/autoFillShoot().
 //     - Any registered writer on either team's Roster may submit for
-//       THEIR side; the system alone decides which registered
-//       character gets credited (weighted-random by position) — with
-//       ONE exception: a SAVE roll during an active shot can only be
-//       submitted by the account that IS that side's registered GK
-//       (Roster Username), or a proxy scoped specifically to that GK
-//       character (requireGkOwnerIfSave). Every other action, and
-//       normal team-level access outside of an active shot, is
-//       unaffected. If the GK roster row has no Username at all (NPC/
-//       unassigned keeper), this falls back to ordinary team-level
-//       access instead of locking the team out.
+//       THEIR side, but only AS a character they actually named
+//       (Nama Karakter) and are allowed to embody (resolveCharacterAccess)
+//       — that exact character is who gets credited, always. A SAVE roll
+//       (during an active shot) or a GOAL KICK roll (during a
+//       GoalKickPending restart) can only be submitted as that side's
+//       registered GK (Roster Position === 'GK'), checked both by account
+//       (requireGkOwnerIfSave: must be the GK's Username, or a proxy
+//       scoped specifically to that GK character) and by the named
+//       character's own position (resolveSubmittedCharacter). Every other
+//       action locks a GK OUT instead — a GK character can never be named
+//       for Dribble/Pass/Tackle/Interception. If the GK roster row has no
+//       Username at all (NPC/unassigned keeper), the account-side lock
+//       falls back to ordinary team-level access instead of locking the
+//       team out; the position lock still applies regardless.
 //
 //   PvNPC (human team vs NPC team)
 //     - 30-MINUTE COOLDOWN per submitting writer, between contest rolls
 //       only (checkPvNPCCooldown) — a shot chance you've already
 //       earned is never blocked by this.
-//     - 5 ROLLS PER WRITER PER CALENDAR DAY (resets 00:00 WIB), counting
-//       contest rolls AND shots together (checkPvNPCDailyCap). This is
-//       per SUBMITTING WRITER, never per credited character — a
-//       character can be credited any number of times if the weighted
-//       pick keeps landing on them, that's intentional and not gated
-//       at all.
+//     - 5 ROLLS PER CHARACTER PER CALENDAR DAY (resets 00:00 WIB), counting
+//       contest rolls AND shots together (checkPvNPCDailyCap) — keyed off
+//       the named character (data.characterName), not the writer's
+//       account, so a writer who's eligible for several characters gets
+//       5/day for EACH of them. EXCEPTION: a registered GK has NO daily
+//       cap at all — Save is a forced response to the opponent's shot,
+//       and Goal Kick is a forced restart, neither is a roll the keeper
+//       chose to spend, and a keeper who genuinely gets fewer turns
+//       shouldn't also be the one capped tightest.
 //     - Both limits apply only to PvNPC (and NPCvNPC, see below).
 //     - There is no "first/second mover" wait: the human side submits
 //       one action, and the NPC side is rolled by the system in the
@@ -214,13 +232,30 @@
 //                            the first mover's (shooter's or GK's) style
 //                            pick, stashed until the second mover rolls,
 //                            cleared by clearPendingShoot().
+// [46] GoalKickPending    bool — true when the side named in TeamInAttack
+//                            must take a goal kick before play continues
+//                            (set by resolveContest when outcome ===
+//                            'goalkick'). While true, submitRoll()/
+//                            resolvePvNPCContest() force that side's roll
+//                            to a 'goalkick' action (GK-only — see
+//                            resolveSubmittedCharacter) vs the opponent's
+//                            auto-matched Interception. Cleared the
+//                            instant that one contest resolves, same as
+//                            KickoffPending.
+// [47] GoalKickPendingSince ISO timestamp — when [46] was last set true;
+//                            checkStaleFootballTurns() auto-resolves via
+//                            autoFillGoalKick() if it's been 6h+ with no
+//                            goal kick roll (PvP only, same as the other
+//                            stale-turn fallbacks).
 //
 // ROSTER COLUMNS:
 // [0] MatchCode  [1] TeamSide ('A'|'B')  [2] CharacterName
 // [3] Position ('GK'|'DF'|'MF'|'FW')     [4] IsNPC (bool)
-// [5] Username (forum account allowed to trigger rolls crediting this TEAM —
-//     any registered writer on the team roster may roll for that team;
-//     the system alone decides which character is actually credited)
+// [5] Username (forum account allowed to trigger rolls AS a character on
+//     this TEAM — the writer must still NAME that exact character
+//     (Nama Karakter) when submitting, and that named character is who
+//     gets credited; this column only gates WHICH characters an account
+//     may embody, never which one is picked for them)
 // [6] Injured (bool) — set automatically when this character is hit by
 //     the injury check; -10 to their personal effective dice cap
 //
@@ -237,6 +272,16 @@ var PROGRESS_TO_SHOOT = 50;
 var RED_CARD_PENALTY = 20;
 var INJURY_PENALTY = 10;
 var DICE_FLOOR = 40;
+
+// A goal kick that sits unrolled this long auto-resolves (see
+// checkStaleFootballTurns/autoFillGoalKick) — much shorter than the
+// general 24h stale-turn fallback, since nothing else can happen in the
+// match until the goal kick is taken. No style/RPS involved: the GK's
+// side is penalized with a degraded 1d50 while the opponent gets a full
+// 1d100, whoever rolls higher wins the exchange outright.
+var GOALKICK_STALE_HOURS = 6;
+var GOALKICK_GK_DICE_MAX = 50;
+var GOALKICK_OPP_DICE_MAX = 100;
 
 // ============================================================
 // STYLE (RPS layer) — added on top of the existing Dribble/Pass vs
@@ -347,6 +392,7 @@ function routeGet(params) {
   if (params.action === 'getShootLog')   return getShootLog(params.matchCode, parseInt(params.limit) || 100);
   if (params.action === 'getRoster')     return getRoster(params.matchCode);
   if (params.action === 'checkAccess')   return checkFootballAccess(params);
+  if (params.action === 'getMatchStats') return getMatchStats(params.matchCode);
   return { error: 'Unknown action: ' + params.action };
 }
 
@@ -446,7 +492,8 @@ function getScore(matchCode) {
     shootReady: m[27] || '', shootIsFreeShot: !!m[28], shootType: m[42] || '',
     pendingShootRole: m[29] || '', pendingShootSide: m[30] || '',
     round: m[37] || '', nextRound: m[38] || '', gender: m[39] || '',
-    drawAllowed: !!m[40], humanSide: humanSide, kickoffPending: !!m[43]
+    drawAllowed: !!m[40], humanSide: humanSide, kickoffPending: !!m[43],
+    goalKickPending: !!m[46]
   };
 }
 
@@ -500,12 +547,103 @@ function getShootLog(matchCode, limit) {
 }
 
 // ============================================================
+// MATCH STATS — per-character tallies from RollLog + ShootLog, for
+// post-match awards (Man of the Match criteria to be decided later;
+// this just surfaces the underlying numbers). These are now reliable
+// precisely BECAUSE crediting is submitter-driven (resolveSubmittedCharacter)
+// rather than weighted-random — every row reflects a real decision by
+// whoever actually rolled, not a random pick the roller had no control
+// over. Includes every registered character, even ones with zero rolls.
+// ============================================================
+function getMatchStats(matchCode) {
+  var stats = {}; // characterName -> stat row
+
+  function ensure(name, side, position) {
+    if (!name) return null;
+    if (!stats[name]) {
+      stats[name] = {
+        characterName: name, side: side, position: position,
+        rolls: 0, wins: 0, bonusRolls: 0,
+        dribbles: 0, passes: 0, tackles: 0, interceptions: 0, goalKicks: 0,
+        shots: 0, goals: 0, saves: 0, goalsConceded: 0
+      };
+    }
+    return stats[name];
+  }
+
+  function tallyAction(entry, action) {
+    if (!entry) return;
+    if (action === 'dribble') entry.dribbles++;
+    else if (action === 'pass') entry.passes++;
+    else if (action === 'tackle') entry.tackles++;
+    else if (action === 'interception') entry.interceptions++;
+    else if (action === 'goalkick') entry.goalKicks++;
+  }
+
+  getRosterRows(matchCode).forEach(function (r) {
+    ensure(r.data[2], r.data[1], r.data[3]);
+  });
+
+  var rollRows = getFootballSpreadsheet().getSheetByName('RollLog').getDataRange().getValues();
+  for (var i = 1; i < rollRows.length; i++) {
+    var row = rollRows[i];
+    if (row[1] !== matchCode) continue;
+    var attackWon = row[18] === 'attack';
+
+    var att = ensure(row[9], row[7], row[10]);
+    if (att) {
+      att.rolls++;
+      if (!!row[11]) att.bonusRolls++;
+      if (attackWon) att.wins++;
+      tallyAction(att, row[5]);
+    }
+    var def = ensure(row[14], row[12], row[15]);
+    if (def) {
+      def.rolls++;
+      if (!!row[16]) def.bonusRolls++;
+      if (!attackWon) def.wins++;
+      tallyAction(def, row[6]);
+    }
+  }
+
+  var shootRows = getFootballSpreadsheet().getSheetByName('ShootLog').getDataRange().getValues();
+  for (var j = 1; j < shootRows.length; j++) {
+    var srow = shootRows[j];
+    if (srow[1] !== matchCode) continue;
+    var outcome = srow[14];
+
+    var shooter = ensure(srow[8], srow[5], srow[9]);
+    if (shooter) {
+      shooter.rolls++;
+      shooter.shots++;
+      if (!!srow[10]) shooter.bonusRolls++;
+      if (outcome === 'goal') shooter.goals++;
+    }
+    var gkSide = srow[5] === 'A' ? 'B' : 'A';
+    var saver = ensure(srow[12], gkSide, 'GK');
+    if (saver) {
+      saver.rolls++;
+      if (outcome === 'goal') saver.goalsConceded++;
+      else saver.saves++;
+    }
+  }
+
+  var list = [];
+  for (var name in stats) list.push(stats[name]);
+  return { matchCode: matchCode, characters: list };
+}
+
+// ============================================================
 // PROXY / ACCESS CHECK
-// Access is TEAM-level, not character-level: any writer registered
-// anywhere on a team's Roster for this match may trigger a roll for
-// that team. WHICH character gets credited is always the system's
-// weighted-random pick — never the submitter's choice — so there's
-// no godmodding risk in letting any teammate click.
+// Any writer registered anywhere on a team's Roster for this match may
+// trigger a roll for that team, but ONLY as a character they're actually
+// allowed to embody: resolveCharacterAccess below requires the named
+// character's own registered Username to match the submitter (or a
+// Proxies-sheet proxy scoped to that exact character, or the admin's NPC
+// bypass) — never just "any teammate, any character". That's what keeps
+// "who submits is who acts" from being godmodding: the credited
+// character is always the one actually named, but naming someone else's
+// character without a proxy for them is rejected outright.
 //
 // Proxies sheet: AccountUsername | CanPostAs.
 //   CanPostAs = '*'            → that account may submit for ANY side,
@@ -669,13 +807,14 @@ function checkFootballAccess(params) {
 }
 
 // ============================================================
-// GOALKEEPER-OWNER LOCK (saves only)
-// A save roll decides a goal vs. no-goal, so it's gated tighter than
-// every other action: a Save may only ever be submitted AS the side's
-// actually-registered GK character (roster Position === 'GK'). Every
-// other action — including a team's OWN shoot roll, and normal
-// team-level access outside of an active shot — is untouched and
-// still open to any teammate, same as before.
+// GOALKEEPER-OWNER LOCK (saves and goal kicks)
+// A save roll decides a goal vs. no-goal, and a goal kick is the ONE
+// restart action reserved for the GK specifically, so both are gated
+// tighter than every other action: either may only ever be submitted
+// AS the side's actually-registered GK character (roster Position ===
+// 'GK'). Every other action — including a team's OWN shoot roll, and
+// normal team-level access outside of an active shot/goal kick — is
+// untouched and still open to any teammate, same as before.
 //
 // This is a CHARACTER-identity check, separate from the ACCOUNT
 // check resolveCharacterAccess already ran (is loggedInUsername
@@ -700,11 +839,12 @@ function gkOwnerInfo(matchCode, side) {
 }
 
 function requireGkOwnerIfSave(loggedInUsername, matchCode, side, role, characterName) {
-  if (role !== 'save') return { ok: true };
+  if (role !== 'save' && role !== 'goalkick') return { ok: true };
   var gk = gkOwnerInfo(matchCode, side);
   if (!gk.characterName) return { ok: true }; // no GK registered on this side — nothing to lock to
   if ((characterName || '').toString().trim() === gk.characterName) return { ok: true };
-  return { ok: false, error: 'Hanya ' + gk.characterName + ' (kiper tim ini) yang bisa roll Save.' };
+  var label = role === 'goalkick' ? 'Goal Kick' : 'Save';
+  return { ok: false, error: 'Hanya ' + gk.characterName + ' (kiper tim ini) yang bisa roll ' + label + '.' };
 }
 
 function isSideAllNPC(matchCode, side) {
@@ -771,6 +911,13 @@ function checkPvNPCCooldown(matchCode, characterName) {
 }
 
 function checkPvNPCDailyCap(matchCode, characterName) {
+  // Registered GKs have no daily cap — Save and Goal Kick are both forced
+  // responses/restarts, never a roll the keeper chose to spend, and a
+  // keeper who already gets fewer chances to act shouldn't also be the
+  // one capped tightest.
+  var rosterChar = findRosterCharacter(matchCode, characterName);
+  if (rosterChar && rosterChar.position === 'GK') return { blocked: false };
+
   var todayKey = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
   var count = 0;
 
@@ -925,7 +1072,7 @@ function readPositionWeights(action) {
 
 function pickWeightedCharacter(matchCode, side, action) {
   var roster = getRosterRows(matchCode).filter(function (r) { return r.data[1] === side; });
-  if (action === 'save') {
+  if (action === 'save' || action === 'goalkick') {
     var gk = roster.filter(function (r) { return r.data[3] === 'GK'; });
     if (!gk.length) return null;
     return { name: gk[0].data[2], position: 'GK', isNPC: !!gk[0].data[4], injured: !!gk[0].data[6] };
@@ -961,6 +1108,35 @@ function positionGetsBonus(position, action) {
   return (action === 'tackle' && position === 'DF') ||
          (action === 'interception' && position === 'MF') ||
          (action === 'shoot' && position === 'FW');
+}
+
+// ============================================================
+// SUBMITTED CHARACTER — replaces pickWeightedCharacter on the
+// SUBMITTING side now that "who submits is who acts": looks up the
+// exact character named in the submission and hands back its roster
+// record for crediting/rolling, instead of picking one at random.
+// Also the ONE place the GK lock is enforced on ordinary contest/shoot
+// actions (previously this was implicit — pickWeightedCharacter's
+// non-'save' pool always excluded GK, so a GK could never be picked;
+// now that the submitter names their own character directly, that
+// exclusion has to be explicit): a GK may be credited ONLY for 'save'
+// or 'goalkick', and — symmetrically — only a GK may be credited for
+// either of those two. The NPC side of a PvNPC/NPCvNPC match still
+// goes through pickWeightedCharacter unchanged; there's no submitter
+// to name a character for it.
+// ============================================================
+function resolveSubmittedCharacter(matchCode, characterName, side, action) {
+  var c = findRosterCharacter(matchCode, characterName);
+  if (!c) return { error: 'Karakter tidak terdaftar di pertandingan ini.' };
+  if (c.side !== side) return { error: 'Karakter ini bukan bagian dari sisi ini.' };
+  var isGkAction = (action === 'save' || action === 'goalkick');
+  if (c.position === 'GK' && !isGkAction) {
+    return { error: 'Kiper hanya bisa roll Save atau Goal Kick.' };
+  }
+  if (isGkAction && c.position !== 'GK') {
+    return { error: 'Hanya kiper terdaftar tim ini yang bisa melakukan aksi ini.' };
+  }
+  return { char: { name: c.characterName, position: c.position, isNPC: c.isNPC, injured: c.injured } };
 }
 
 // ============================================================
@@ -1010,17 +1186,27 @@ function kickoff(data) {
     var access = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, m[7] || 'PvP');
     if (!access.allowed) return { error: access.error };
     var teamSide = access.side;
+    // Kick off IS the restart pass now (not a separate step before one) —
+    // validate the style up front so we never half-kickoff on bad input.
+    if (!validateStyle(data.styleType)) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
 
     found.sheet.getRange(found.row, 7, 1, 4).setValues([['active', m[7] || 'PvP', 'H1', 0]]); // Status, MatchType, Phase, HalfMinute
     found.sheet.getRange(found.row, 11).setValue(teamSide); // TeamInAttack
     found.sheet.getRange(found.row, 18).setValue(teamSide); // KickoffFirstHalf
     found.sheet.getRange(found.row, 42).setValue(new Date().toISOString()); // LastActivity
     found.sheet.getRange(found.row, 44).setValue(true); // KickoffPending
-
-    return { success: true, teamInAttack: teamSide, phase: 'H1', halfMinute: 0 };
   } finally {
     lock.releaseLock();
   }
+  // Kickoff state is committed — now perform the forced first Pass (or, if
+  // the other side kicked off, the forced Interception) through the exact
+  // same code path every other action uses. submitRoll() re-reads the
+  // match fresh (its own lock), sees KickoffPending, and forces the
+  // action; for PvNPC/NPCvNPC this also auto-resolves the NPC side in the
+  // same call, for free — no separate "now go press Roll" step needed.
+  var result = submitRoll(data);
+  if (result && typeof result === 'object' && !result.error) result.isKickoffRoll = true;
+  return result;
 }
 
 // ============================================================
@@ -1095,8 +1281,18 @@ function submitRoll(data) {
       // First mover. Their role is whichever side they are.
       var role = teamSide === attackSide ? 'attack' : 'defend';
       var kickoffPending = !!m[43];
+      var goalKickPending = !!m[46];
       var chosenAction;
-      if (kickoffPending) {
+      if (goalKickPending) {
+        // The GK's side MUST go first here: if the opponent rolled first
+        // instead, the GK's second-mover action would just be
+        // matchAction('interception') === 'pass' — an ordinary Pass any
+        // teammate could submit, silently losing the GK-only guarantee
+        // this whole feature exists for. So the opponent can't roll at
+        // all until the goal kick itself has been taken.
+        if (role === 'defend') return { error: 'Menunggu goal kick dari tim lawan dulu.' };
+        chosenAction = 'goalkick';
+      } else if (kickoffPending) {
         // The restart pass hasn't happened yet — nobody can dribble/tackle
         // past anyone until it does. Forced, regardless of what was sent.
         chosenAction = role === 'attack' ? 'pass' : 'interception';
@@ -1108,8 +1304,11 @@ function submitRoll(data) {
         }
       }
 
-      var char1 = pickWeightedCharacter(data.matchCode, teamSide, chosenAction);
-      if (!char1) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+      var gkLock1 = requireGkOwnerIfSave(data.loggedInUsername, data.matchCode, teamSide, chosenAction, data.characterName);
+      if (!gkLock1.ok) return { error: gkLock1.error };
+      var res1 = resolveSubmittedCharacter(data.matchCode, data.characterName, teamSide, chosenAction);
+      if (res1.error) return { error: res1.error };
+      var char1 = res1.char;
       var redCards1 = teamSide === 'A' ? (m[15] || 0) : (m[16] || 0);
       var rolled1 = rollForCharacter(redCards1, char1, chosenAction);
 
@@ -1136,8 +1335,11 @@ function submitRoll(data) {
     var pendingStyle = validateStyle(m[44]) || randomStyle(); // safety net for old pending rows with no style
     var myAction2 = matchAction(pendingAction);
 
-    var char2 = pickWeightedCharacter(data.matchCode, teamSide, myAction2);
-    if (!char2) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+    var gkLock2 = requireGkOwnerIfSave(data.loggedInUsername, data.matchCode, teamSide, myAction2, data.characterName);
+    if (!gkLock2.ok) return { error: gkLock2.error };
+    var res2 = resolveSubmittedCharacter(data.matchCode, data.characterName, teamSide, myAction2);
+    if (res2.error) return { error: res2.error };
+    var char2 = res2.char;
     var redCards2 = teamSide === 'A' ? (m[15] || 0) : (m[16] || 0);
     var rolled2 = rollForCharacter(redCards2, char2, myAction2);
 
@@ -1172,6 +1374,7 @@ function matchAction(action) {
   if (action === 'pass') return 'interception';
   if (action === 'tackle') return 'dribble';
   if (action === 'interception') return 'pass';
+  if (action === 'goalkick') return 'interception'; // one-way: nothing ever auto-locks INTO a goal kick
   return action;
 }
 
@@ -1191,9 +1394,19 @@ function resolvePvNPCContest(found, data, attackSide, defendSide, humanSide, myS
   var npcSide = humanSide === attackSide ? defendSide : attackSide;
   var humanRole = humanSide === attackSide ? 'attack' : 'defend';
 
+  // If GoalKickPending's side is the NPC's, the NPC just takes an ordinary
+  // forced pass (weighted-random, not GK-specific) — the GK-only guarantee
+  // exists to give a HUMAN keeper real playtime; an NPC has nothing to
+  // gain from it, so there's no need to hunt down the NPC roster's GK
+  // specifically. Only when the HUMAN's own side must take the goal kick
+  // does it become the GK-locked 'goalkick' action below.
+  var mustBeGoalkick = !!m[46] && humanRole === 'attack';
   var chosenAction;
-  if (!!m[43]) {
-    // KickoffPending — same forced Pass/Interception restart rule as PvP.
+  if (mustBeGoalkick) {
+    chosenAction = 'goalkick';
+  } else if (!!m[46] || !!m[43]) {
+    // GoalKickPending (NPC's side taking it) or KickoffPending — same
+    // forced Pass/Interception restart rule as PvP either way.
     chosenAction = humanRole === 'attack' ? 'pass' : 'interception';
   } else {
     chosenAction = (data.chosenAction || '').toString().toLowerCase();
@@ -1203,8 +1416,11 @@ function resolvePvNPCContest(found, data, attackSide, defendSide, humanSide, myS
     }
   }
 
-  var humanChar = pickWeightedCharacter(data.matchCode, humanSide, chosenAction);
-  if (!humanChar) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+  var gkLockPvNPC = requireGkOwnerIfSave(data.loggedInUsername, data.matchCode, humanSide, chosenAction, data.characterName);
+  if (!gkLockPvNPC.ok) return { error: gkLockPvNPC.error };
+  var resHuman = resolveSubmittedCharacter(data.matchCode, data.characterName, humanSide, chosenAction);
+  if (resHuman.error) return { error: resHuman.error };
+  var humanChar = resHuman.char;
   var humanRedCards = humanSide === 'A' ? (m[15] || 0) : (m[16] || 0);
   var humanRolled = rollForCharacter(humanRedCards, humanChar, chosenAction);
 
@@ -1238,7 +1454,7 @@ function resolvePvNPCContest(found, data, attackSide, defendSide, humanSide, myS
 // advances the minute clock, and clears any pending state.
 // ============================================================
 
-function resolveContest(found, attackSide, defendSide, attackData, defendData, submittedBy, icLine, autoResolved) {
+function resolveContest(found, attackSide, defendSide, attackData, defendData, submittedBy, icLine, autoResolved, skipRps) {
   var m = found.data;
   var margin = Math.abs(attackData.roll - defendData.roll);
   if (margin === 0) margin = 1;
@@ -1247,8 +1463,13 @@ function resolveContest(found, attackSide, defendSide, attackData, defendData, s
   // itself is untouched by any of this: it's still the SAME roll gap
   // as before, still driving progressForMargin()/tackleFailOutcome()/
   // tackleSucceedOutcome() exactly as it always has.
-  var rps = rpsStyleResult(attackData.style, defendData.style);
-  var attackWins = rps === 'tie' ? (attackData.roll > defendData.roll) : (rps === 'attack');
+  // skipRps (autoFillGoalKick only): style never entered into this
+  // exchange at all (it's a punitive 1d50-vs-1d100 auto-fill, no style
+  // picked by anyone) — decide the winner on the raw roll alone, and
+  // log it as 'no_rps' rather than a misleading style 'tie'.
+  var rps = skipRps ? 'no_rps' : rpsStyleResult(attackData.style, defendData.style);
+  var attackWins = skipRps ? (attackData.roll > defendData.roll)
+    : (rps === 'tie' ? (attackData.roll > defendData.roll) : (rps === 'attack'));
   var winnerSide = attackWins ? attackSide : defendSide;
 
   var progressGained = progressForMargin(margin);
@@ -1296,6 +1517,15 @@ function resolveContest(found, attackSide, defendSide, attackData, defendData, s
     if (attackTeamProgress >= PROGRESS_TO_SHOOT) { shootReady = newTeamInAttack; shootType = 'open_play'; }
   }
 
+  // A defend win landing in the goalkick bucket means the NEW attacking
+  // side (newTeamInAttack, which is defendSide here) must take a goal
+  // kick before anything else can happen — see GoalKickPending. Every
+  // OTHER outcome clears it, same as KickoffPending always does below,
+  // so a goal kick that immediately resolves into another goal kick
+  // (a fresh high-margin defend win) correctly re-arms it instead of
+  // silently dropping the requirement.
+  var goalKickPending = (outcome === 'goalkick');
+
   // Write back match state.
   found.sheet.getRange(found.row, 11).setValue(newTeamInAttack); // TeamInAttack
   found.sheet.getRange(found.row, 12, 1, 2).setValues([[progressA, progressB]]); // ProgressA, ProgressB
@@ -1306,6 +1536,7 @@ function resolveContest(found, attackSide, defendSide, attackData, defendData, s
   found.sheet.getRange(found.row, 43).setValue(shootType); // ShootType
   found.sheet.getRange(found.row, 42).setValue(new Date().toISOString()); // LastActivity
   found.sheet.getRange(found.row, 44).setValue(false); // KickoffPending — the restart pass is done now
+  found.sheet.getRange(found.row, 47, 1, 2).setValues([[goalKickPending, goalKickPending ? new Date().toISOString() : '']]); // GoalKickPending, GoalKickPendingSince
 
   var rollId = Utilities.getUuid().slice(0, 8);
   appendRollLogRow(m[0], submittedBy, m[8], halfMinute, attackData, defendData, margin,
@@ -1445,8 +1676,9 @@ function submitShoot(data) {
       var gkLock1 = requireGkOwnerIfSave(data.loggedInUsername, data.matchCode, teamSide, role, data.characterName);
       if (!gkLock1.ok) return { error: gkLock1.error };
       var action = role === 'shoot' ? 'shoot' : 'save';
-      var char1 = pickWeightedCharacter(data.matchCode, teamSide, action);
-      if (!char1) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+      var res1 = resolveSubmittedCharacter(data.matchCode, data.characterName, teamSide, action);
+      if (res1.error) return { error: res1.error };
+      var char1 = res1.char;
       var redCards1 = teamSide === 'A' ? (m[15] || 0) : (m[16] || 0);
       var rolled1 = rollForCharacter(redCards1, char1, action);
 
@@ -1471,8 +1703,9 @@ function submitShoot(data) {
     var role2 = teamSide === shootSide ? 'shoot' : 'save';
     var gkLock2 = requireGkOwnerIfSave(data.loggedInUsername, data.matchCode, teamSide, role2, data.characterName);
     if (!gkLock2.ok) return { error: gkLock2.error };
-    var char2 = pickWeightedCharacter(data.matchCode, teamSide, role2);
-    if (!char2) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+    var res2 = resolveSubmittedCharacter(data.matchCode, data.characterName, teamSide, role2);
+    if (res2.error) return { error: res2.error };
+    var char2 = res2.char;
     var redCards2 = teamSide === 'A' ? (m[15] || 0) : (m[16] || 0);
     var rolled2 = rollForCharacter(redCards2, char2, role2);
     var pendingShootStyle = validateStyle(m[45]) || randomStyle(); // safety net for old pending rows with no style
@@ -1504,8 +1737,9 @@ function resolvePvNPCShoot(found, data, shootSide, gkSide, humanSide, myStyle) {
   var humanAction = humanSide === shootSide ? 'shoot' : 'save';
   var npcAction = npcSide === shootSide ? 'shoot' : 'save';
 
-  var humanChar = pickWeightedCharacter(data.matchCode, humanSide, humanAction);
-  if (!humanChar) return { error: 'Tidak ada karakter yang terdaftar untuk posisi ini.' };
+  var resHuman = resolveSubmittedCharacter(data.matchCode, data.characterName, humanSide, humanAction);
+  if (resHuman.error) return { error: resHuman.error };
+  var humanChar = resHuman.char;
   var humanRedCards = humanSide === 'A' ? (m[15] || 0) : (m[16] || 0);
   var humanRolled = rollForCharacter(humanRedCards, humanChar, humanAction);
 
@@ -1690,6 +1924,11 @@ function startSecondHalf(data) {
   found.sheet.getRange(found.row, 10).setValue(0);
   found.sheet.getRange(found.row, 11).setValue(secondHalfKickoff);
   found.sheet.getRange(found.row, 44).setValue(true); // KickoffPending
+  // Defensive: if the half happened to END on the exact contest that set
+  // GoalKickPending (last roll of the half landing in the goalkick
+  // bucket), don't carry that requirement into the new half — it always
+  // restarts with an ordinary kickoff instead.
+  found.sheet.getRange(found.row, 47, 1, 2).setValues([[false, '']]);
   return { success: true, phase: 'H2', teamInAttack: secondHalfKickoff };
 }
 
@@ -1710,17 +1949,24 @@ function startExtraTime(data) {
   found.sheet.getRange(found.row, 10).setValue(0);
   found.sheet.getRange(found.row, 11).setValue(kickoffTeam);
   found.sheet.getRange(found.row, 44).setValue(true); // KickoffPending
+  found.sheet.getRange(found.row, 47, 1, 2).setValues([[false, '']]); // same defensive clear as startSecondHalf
   return { success: true, phase: nextPhase, teamInAttack: kickoffTeam };
 }
 
 // ============================================================
-// 24H AUTO-RESOLVE FOR STALE PvP TURNS — PvP ONLY. PvNPC and
-// NPCvNPC both resolve fully within a single submitRoll/submitShoot
-// call (see RULES BY MATCH TYPE at the top of this file), so they
-// never leave a roll pending and this never applies to them.
-// Fills exactly one missing roll (contest OR shoot/save) for
-// whichever side hasn't responded in 24h+, using a degraded die
-// (1d50) same spirit as the other sports' stale-turn fallback.
+// AUTO-RESOLVE FOR STALE PvP TURNS — PvP ONLY. PvNPC and NPCvNPC both
+// resolve fully within a single submitRoll/submitShoot call (see RULES
+// BY MATCH TYPE at the top of this file), so they never leave a roll
+// pending and none of this applies to them.
+//   - Contest OR shoot/save, one side already answered, other side
+//     silent 24h+: autoFillContest()/autoFillShoot() fill the missing
+//     side with a degraded 1d50 (no position bonus), same spirit as the
+//     other sports' stale-turn fallback.
+//   - Goal kick, NOBODY has rolled at all, silent 6h+ (GOALKICK_STALE_
+//     HOURS): autoFillGoalKick() resolves the whole exchange itself —
+//     1d50 for the GK's side, 1d100 for the opponent, no style/RPS.
+//     Shorter fuse than the other two because the entire match is
+//     blocked on this one roll, not just one contest.
 // ============================================================
 
 function checkStaleFootballTurns() {
@@ -1746,6 +1992,21 @@ function checkStaleFootballTurns() {
       var waitedShoot = (now - new Date(r[36])) / (1000 * 60 * 60);
       if (waitedShoot >= 24) {
         autoFillShoot(found);
+      }
+    }
+
+    // Stale goal kick — separate from the two above, and only while
+    // NOBODY has rolled into it yet (r[18] empty): the moment the GK
+    // actually takes it, that becomes an ordinary pending contest waiting
+    // on the opponent's Interception, already covered by the "Stale
+    // open-play contest" branch above. This one is on a much shorter
+    // fuse than the general 24h fallback: nothing else in the match can
+    // happen until the goal kick is taken, so the whole match would
+    // otherwise sit blocked that long on one missing GK roll.
+    if (r[46] && r[47] && !r[18]) {
+      var waitedGoalKick = (now - new Date(r[47])) / (1000 * 60 * 60);
+      if (waitedGoalKick >= GOALKICK_STALE_HOURS) {
+        autoFillGoalKick(found);
       }
     }
   }
@@ -1801,6 +2062,32 @@ function autoFillShoot(found) {
 
   var note = '[Sistem roll otomatis untuk ' + char.name + ' setelah 24 jam tidak ada respons]';
   resolveShoot(found, shootSide, gkSide, shootData, saveData, 'Girok (auto)', note, true, 'PvP');
+}
+
+// No RPS here at all — neither side picked a style, since neither side
+// actually rolled. The GK's side is punished with a degraded 1d50 for
+// having left the restart unrolled this long; the opponent gets a full,
+// un-degraded 1d100. Whoever rolls higher simply wins the exchange, same
+// margin/outcome-bucket pipeline as any other contest from there.
+function autoFillGoalKick(found) {
+  var m = found.data;
+  var gkSide = m[10]; // TeamInAttack — the side GoalKickPending was set for
+  var oppSide = gkSide === 'A' ? 'B' : 'A';
+
+  var gkChar = pickWeightedCharacter(m[0], gkSide, 'goalkick');
+  if (!gkChar) return; // no GK registered on this side — leave it parked
+  var oppChar = pickWeightedCharacter(m[0], oppSide, 'interception');
+  if (!oppChar) return;
+
+  var gkRoll = Math.floor(Math.random() * GOALKICK_GK_DICE_MAX) + 1;
+  var oppRoll = Math.floor(Math.random() * GOALKICK_OPP_DICE_MAX) + 1;
+
+  var attackData = { side: gkSide, action: 'goalkick', roll: gkRoll, character: gkChar.name, position: gkChar.position, bonus: false, style: '' };
+  var defendData = { side: oppSide, action: 'interception', roll: oppRoll, character: oppChar.name, position: oppChar.position, bonus: false, style: '' };
+
+  var note = '[Sistem roll otomatis (1d' + GOALKICK_GK_DICE_MAX + ' vs 1d' + GOALKICK_OPP_DICE_MAX +
+    ', tanpa gaya) untuk ' + gkChar.name + ' setelah ' + GOALKICK_STALE_HOURS + ' jam tidak ada respons]';
+  resolveContest(found, gkSide, oppSide, attackData, defendData, 'Girok (auto)', note, true, true);
 }
 
 // ============================================================
@@ -1866,9 +2153,9 @@ function setupSheets() {
       'PendingShootRole', 'PendingShootSide', 'PendingShootRoll', 'PendingShootCharacter',
       'PendingShootPosition', 'PendingShootBonus', 'PendingShootSubmittedBy', 'ShootWaitingSince',
       'Round', 'NextRound', 'Gender', 'DrawAllowed', 'LastActivity', 'ShootType', 'KickoffPending', 'PendingStyle',
-      'PendingShootStyle'
+      'PendingShootStyle', 'GoalKickPending', 'GoalKickPendingSince'
     ]);
-    ms.getRange(1, 1, 1, 46).setFontWeight('bold');
+    ms.getRange(1, 1, 1, 48).setFontWeight('bold');
   }
 
   var rs = ss.getSheetByName('Roster') || ss.insertSheet('Roster');

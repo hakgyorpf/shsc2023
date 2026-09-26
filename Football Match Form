@@ -283,7 +283,7 @@
 
   var ACTION_LABELS = {
     dribble: 'Dribble!', pass: 'Pass!', tackle: 'Tackle!', interception: 'Intercept!',
-    shoot: 'Shoot!', save: 'Save!'
+    shoot: 'Shoot!', save: 'Save!', goalkick: 'Goal Kick!'
   };
   var STYLE_LABELS = { pace: '🏃 Pace', power: '💥 Power', skill: '🎯 Skill' };
   var STYLE_TYPES = ['pace', 'power', 'skill'];
@@ -301,13 +301,13 @@
   // what happens to the ball after a contest resolves.
   var ACTION_VERBING = {
     dribble: 'Dribbling...', pass: 'Passing...', tackle: 'Tackling...', interception: 'Intercepting...',
-    shoot: 'Shooting...', save: 'Saving...', kickoff: 'Kicking off...'
+    shoot: 'Shooting...', save: 'Saving...', kickoff: 'Kicking off...', goalkick: 'Taking the goal kick...'
   };
   // Lowercase gerund (no leading capital, no "...") for the "is X-ing..."
   // line shown under a character's name in the overlay's reveal boxes.
   var ACTION_ING = {
     dribble: 'dribbling', pass: 'passing', tackle: 'tackling', interception: 'intercepting',
-    shoot: 'shooting', save: 'saving'
+    shoot: 'shooting', save: 'saving', goalkick: 'taking a goal kick'
   };
   var SHOOT_TYPE_BANNER_EN = {
     open_play: 'Progress hits 50!', penalty: 'Penalty!', corner: 'Corner!', freekick: 'Free kick!'
@@ -329,6 +329,7 @@
     if (a === 'pass') return 'interception';
     if (a === 'tackle') return 'dribble';
     if (a === 'interception') return 'pass';
+    if (a === 'goalkick') return 'interception';
     return a;
   }
 
@@ -561,9 +562,13 @@
     if (!curCharacterName || !curSide) { icField.style.display = 'none'; return; }
     if (!d || d.status === 'finished') { icField.style.display = 'none'; return; }
 
-    // Not kicked off yet
+    // Not kicked off yet — kick off IS the restart pass now (same shape
+    // as any other roll: pick a style, then roll), not a separate step
+    // before one.
     if (!d.teamInAttack) {
-      icField.style.display = 'none';
+      icField.style.display = 'block';
+      selectedStyle = '';
+      renderStylePicker(area);
       var kbtn = document.createElement('button');
       kbtn.className = 'fbf-btn'; kbtn.textContent = 'Kick Off! ⚽';
       kbtn.onclick = doKickoff;
@@ -671,6 +676,40 @@
     var myRole = curSide === d.teamInAttack ? 'attack' : 'defend';
     icField.style.display = 'block';
 
+    // Goal kick restart: the side now in attack must take a goal kick
+    // before anything else can happen, and — unlike kickoff — the GK's
+    // side has to go first: the backend rejects the opponent rolling
+    // here at all (their Interception only exists as the matched
+    // response to the GK's own roll, once that's parked as pending).
+    if (d.goalKickPending) {
+      var takingGoalKick = curSide === d.teamInAttack;
+      if (!takingGoalKick) {
+        var waitSchool = d.teamInAttack === 'A' ? d.schoolA : d.schoolB;
+        area.innerHTML = '<div class="fbf-waitbox">Menunggu ' + esc(waitSchool) + ' melakukan Goal Kick...</div>';
+        icField.style.display = 'none';
+        return;
+      }
+      if (!isCurCharacterGK()) {
+        area.innerHTML = '<div class="fbf-waitbox">Hanya kiper terdaftar tim ini yang bisa melakukan Goal Kick. Pilih karakter kiper di atas.</div>';
+        icField.style.display = 'none';
+        return;
+      }
+      var gkNote = document.createElement('div');
+      gkNote.className = 'fbf-note';
+      gkNote.style.marginBottom = '0.5rem';
+      gkNote.textContent = 'Goal kick! Kiper harus menendang bola dulu sebelum lanjut open play.';
+      area.appendChild(gkNote);
+      icField.style.display = 'block';
+      selectedStyle = '';
+      renderStylePicker(area);
+      var gkbtn = document.createElement('button');
+      gkbtn.className = 'fbf-btn';
+      gkbtn.textContent = 'Goal Kick! ⚽';
+      gkbtn.onclick = function() { selectedAction = 'goalkick'; doRoll(); };
+      submitArea.appendChild(gkbtn);
+      return;
+    }
+
     // Kickoff/restart: the pass hasn't happened yet, so nobody can
     // dribble or tackle — forced into Pass (attack) / Interception
     // (defend), same as the server enforces regardless of what's sent.
@@ -742,10 +781,15 @@
     var err = document.getElementById('fbf-err'); err.style.display = 'none';
     if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
     if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
+    if (!selectedStyle) { showErr('Pilih gaya main dulu: Pace, Power, atau Skill.'); return; }
+    var ic = document.getElementById('fbf-ic').value.trim();
     beginRolling(ACTION_VERBING.kickoff);
-    postGAS({ action: 'kickoff', matchCode: curMatch, characterName: curCharacterName, loggedInUsername: loggedInUsername }, function(d) {
+    // Kick off IS the restart pass now (server resolves it through the
+    // same code path as submitRoll), so it returns a normal contest
+    // result — reveal it the same way as any other roll.
+    postGAS({ action: 'kickoff', matchCode: curMatch, characterName: curCharacterName, styleType: selectedStyle, icLine: ic, loggedInUsername: loggedInUsername }, function(d) {
       if (d.error) { hideRolling(); showErr(d.error); return; }
-      afterAnim(d, runKickoffReveal);
+      afterAnim(d, runContestReveal);
     });
   }
 
@@ -789,8 +833,25 @@
   //    description — each appearing in turn — and only then does the
   //    "View Match Page" link show up.
 
+  // Both the "server answered before the 3s beat" path (here) and the
+  // "beat finished first" path (beginRolling's timer, below) call the
+  // reveal function with zero surrounding try/catch of their own — a bug
+  // in runContestReveal/runShootReveal would otherwise
+  // throw silently and leave the overlay stuck blank with no error shown,
+  // even though the roll already succeeded server-side. safeReveal makes
+  // that failure visible instead.
+  function safeReveal(fn, d) {
+    try {
+      fn(d);
+    } catch (e) {
+      console.error('reveal render error:', e);
+      hideRolling();
+      showErr('Gagal menampilkan hasil roll (tersimpan di server). Coba muat ulang halaman. (' + e.message + ')');
+    }
+  }
+
   function afterAnim(d, fn) {
-    if (actionLoadingDone) { fn(d); return; }
+    if (actionLoadingDone) { safeReveal(fn, d); return; }
     pendingRollResult = { d: d, fn: fn };
   }
 
@@ -830,7 +891,7 @@
       var row = document.getElementById('fbf-row-' + p);
       row.style.display = 'none'; row.style.opacity = '0.4';
       document.getElementById('fbf-' + p + '-rps').style.display = 'none';
-      document.getElementById('fbf-' + p + '-name').textContent = '—';
+      document.getElementById('fbf-row-' + p + '-name').textContent = '—';
       document.getElementById('fbf-' + p + '-action').textContent = '—';
       document.getElementById('fbf-' + p + '-roll').textContent = '--';
     });
@@ -862,16 +923,11 @@
     loadScore(curMatch, false);
   }
 
-  function runKickoffReveal(d) {
-    var meta = matchMeta[curMatch] || {};
-    var attName = curSide === d.teamInAttack ? meta.schoolA : meta.schoolB;
-    showRevealStage();
-    showHeadline('Kick off! ⚽');
-    showFullDesc(esc(attName) + ' starts the half.');
-    showGoLink(curMatch);
-  }
-
   function contestHeadline(d) {
+    // Kick off is just a forced Pass/Interception exchange under the hood
+    // now (server tags it isKickoffRoll), but it still deserves its own
+    // banner rather than a generic "Intercept succeeded!"-type headline.
+    if (d.isKickoffRoll) return 'Kick off! ⚽';
     var defendWon = d.winnerSide === d.defend.side;
     var label = ACTION_LABELS[d.defend.action] ? ACTION_LABELS[d.defend.action].replace('!','') : 'Tackle';
     return label + (defendWon ? ' succeeded!' : ' failed!');
@@ -1010,15 +1066,23 @@
     xr.timeout = 25000;
     xr.setRequestHeader('Content-Type', 'text/plain');
     xr.onload = function() {
-      try { cb(JSON.parse(xr.responseText)); }
-      catch(e) {
+      var parsed;
+      try {
+        parsed = JSON.parse(xr.responseText);
+      } catch (e) {
         // Log the raw body so a repeat of this error can actually be
         // diagnosed (e.g. an HTML auth/error page from Google instead of
         // JSON) instead of just showing a generic message every time.
         console.error('postGAS: non-JSON response (status ' + xr.status + '):', xr.responseText);
         hideRolling();
         showErr('Server mengembalikan respons yang tidak valid. Coba lagi.');
+        return;
       }
+      // cb() runs outside the try/catch above so a bug in the reveal
+      // rendering (e.g. a missing DOM element) surfaces as its own real
+      // error instead of being swallowed and misreported as a JSON/server
+      // problem when the response was actually fine.
+      cb(parsed);
     };
     xr.onerror = function() { hideRolling(); showErr('Koneksi ke server gagal.'); };
     xr.ontimeout = function() { hideRolling(); showErr('Server terlalu lama merespons. Coba lagi.'); };
@@ -1052,7 +1116,7 @@
       if (pendingRollResult) {
         var result = pendingRollResult;
         pendingRollResult = null;
-        result.fn(result.d);
+        safeReveal(result.fn, result.d);
       }
     }, 3000);
   }
