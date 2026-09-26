@@ -1,0 +1,1066 @@
+<!-- SUBMIT PAGE — paste inside Webpage Maker -->
+<!-- Replace GAS_URL_HERE and MATCH_PAGE_URL_HERE -->
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&family=Josefin+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+.fbf {
+  --pitch-1: #2d6a4f;
+  --pitch-2: #0f2818;
+  --pitch-shadow: rgba(4,10,7,0.5);
+  --accent-1: #d8f3dc;
+  --accent-2: #52b788;
+  --accent-shadow: #1b4332;
+  --accent-text: #08150d;
+  --badge: #74c69d;
+  --text-on-deep: #eef7f0;
+  --text-on-deep-secondary: #b7d9c4;
+  --text-on-deep-muted: #7fa88f;
+  --high: #d8f3dc;
+  --gold: #d4a017;
+  --card-yellow: #f4d35e;
+  --card-red: #e0483e;
+
+  font-family: 'Nunito', sans-serif;
+  max-width: 560px; margin: 0 auto; padding: 44px 28px 60px;
+  color: var(--accent-text);
+  background: #eaf4ec;
+  border-radius: 32px;
+  font-size: 15px;
+}
+.fbf-eventname { font-family: 'Josefin Sans', sans-serif; font-size: 1.404rem; font-weight: bold; color: var(--pitch-2); text-align: center; margin-bottom: 0.4rem; line-height: 1.3; }
+.fbf-eventsub { font-family: 'IBM Plex Mono', monospace; font-size: 0.608rem; letter-spacing: 2px; text-transform: uppercase; color: var(--pitch-1); text-align: center; margin-bottom: 2rem; font-weight: bold; }
+
+.fbf-field { margin-bottom: 1rem; }
+.fbf-label { display: block; font-size: 0.608rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--pitch-2); margin-bottom: 0.4rem; font-weight: bold; }
+.fbf-label .opt { color: var(--pitch-1); text-transform: none; letter-spacing: 0; font-weight: normal; }
+.fbf-input, .fbf-textarea {
+  width: 100%; background: var(--pitch-2); border: none; border-radius: 18px;
+  padding: 0.75rem 1rem; font-family: 'Nunito', sans-serif; font-size: 0.9rem;
+  color: var(--text-on-deep); outline: none; box-sizing: border-box;
+  box-shadow: inset 0 3px 5px var(--pitch-shadow);
+  -webkit-text-fill-color: var(--text-on-deep); caret-color: var(--text-on-deep);
+  -webkit-appearance: none; color-scheme: dark;
+}
+.fbf-input::placeholder, .fbf-textarea::placeholder { color: var(--text-on-deep-muted); font-size: 0.72rem; opacity: 0.9; }
+.fbf-input:focus, .fbf-textarea:focus { box-shadow: inset 0 3px 5px var(--pitch-shadow), 0 0 0 2px var(--accent-2); }
+.fbf-textarea { resize: vertical; min-height: 72px; line-height: 1.6; }
+
+.fbf-dropdown { position: relative; }
+.fbf-dropdown-btn {
+  width: 100%; text-align: left; background: var(--pitch-2); border: none; border-radius: 18px;
+  padding: 0.75rem 1rem; font-family: 'Nunito', sans-serif; font-size: 0.9rem;
+  color: var(--text-on-deep); cursor: pointer; box-sizing: border-box;
+  box-shadow: 0 5px 0 -1px rgba(4,10,7,0.4), 0 8px 14px -4px var(--pitch-shadow);
+}
+.fbf-dropdown-btn:hover { filter: brightness(1.1); }
+.fbf-dropdown-btn::after { content: '▾'; float: right; color: var(--accent-1); font-weight: bold; }
+.fbf-dropdown-list {
+  display: none; position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+  background: var(--pitch-2); border-radius: 18px; max-height: 280px; overflow-y: auto; z-index: 30;
+  box-shadow: 0 10px 24px -6px var(--pitch-shadow); padding: 6px;
+}
+.fbf-dropdown-list.open { display: block; }
+.fbf-dropdown-item { padding: 0.6rem 0.7rem; font-size: 0.82rem; color: var(--text-on-deep); cursor: pointer; border-radius: 12px; }
+.fbf-dropdown-item:hover, .fbf-dropdown-item.active { background: rgba(216,243,220,0.18); color: var(--high); }
+.fbf-dropdown-item.empty { color: var(--text-on-deep-muted); font-style: italic; cursor: default; }
+
+.fbf-side-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.fbf-side-btn {
+  background: var(--pitch-2); border: 2px solid transparent; border-radius: 16px;
+  padding: 0.8rem 0.6rem; font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: bold;
+  color: var(--text-on-deep-secondary); cursor: pointer; text-align: center;
+  box-shadow: 0 4px 0 -1px rgba(4,10,7,0.4);
+}
+.fbf-side-btn.selected { border-color: var(--accent-1); color: var(--high); background: var(--pitch-1); }
+
+.fbf-style-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-top: 0.2rem; margin-bottom: 0.6rem; }
+.fbf-style-btn {
+  background: var(--pitch-2); border: 2px solid rgba(216,243,220,0.28); border-radius: 16px;
+  padding: 0.7rem 0.4rem; font-family: 'Nunito', sans-serif; font-size: 0.78rem; font-weight: bold;
+  color: var(--text-on-deep-secondary); cursor: pointer; text-align: center;
+  box-shadow: 0 4px 0 -1px rgba(4,10,7,0.4);
+  transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.05s;
+}
+.fbf-style-btn:hover { border-color: var(--gold); color: var(--high); }
+.fbf-style-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 -1px rgba(4,10,7,0.4); }
+.fbf-style-btn.selected { border-color: var(--gold); color: var(--accent-text); background: var(--gold); }
+.fbf-style-hint { font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; letter-spacing: 0.5px; color: var(--pitch-1); margin: -0.15rem 0 0.6rem; text-align: center; }
+
+.fbf-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 1.1rem; }
+.fbf-action-row.single { grid-template-columns: 1fr; }
+.fbf-action-btn {
+  background: var(--pitch-2); border: 2px solid rgba(216,243,220,0.28); border-radius: 16px;
+  padding: 0.9rem 0.6rem; font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: bold;
+  color: var(--text-on-deep-secondary); cursor: pointer; text-align: center;
+  box-shadow: 0 4px 0 -1px rgba(4,10,7,0.4);
+  transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.05s;
+}
+.fbf-action-btn:hover { border-color: var(--accent-2); color: var(--high); }
+.fbf-action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 -1px rgba(4,10,7,0.4); }
+.fbf-action-btn.selected { border-color: var(--accent-1); color: var(--high); background: var(--pitch-1); }
+.fbf-action-btn.shoot { background: var(--gold); color: #2b1c00; border-color: rgba(0,0,0,0.18); box-shadow: 0 4px 0 -1px rgba(150,100,0,0.5); }
+
+.fbf-score {
+  background: var(--pitch-2); border: none; border-radius: 20px; padding: 1rem 1.2rem; margin-bottom: 1.2rem;
+  box-shadow: 0 8px 0 -2px rgba(4,10,7,0.4), 0 14px 22px -6px var(--pitch-shadow);
+}
+.fbf-score-badges { display: flex; gap: 0.35rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.fbf-score-typebadge { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; letter-spacing: 1px; padding: 2px 8px; border-radius: 10px; font-weight: bold; }
+.fbf-score-typebadge.pvp { background: var(--accent-2); color: #06170e; }
+.fbf-score-typebadge.pvnpc { background: rgba(255,255,255,0.15); color: var(--text-on-deep-secondary); }
+.fbf-score-typebadge.phase { background: rgba(216,243,220,0.18); color: var(--high); text-transform: uppercase; }
+.fbf-score-vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.45rem; margin-bottom: 0.6rem; }
+.fbf-score-side { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }
+.fbf-score-name { font-size: 0.92rem; font-weight: bold; color: var(--text-on-deep); text-align: center; }
+.fbf-score-vsbutton {
+  display: inline-flex; align-items: center; justify-content: center; width: 2.15rem; height: 2.15rem;
+  border-radius: 50%; background: #ffffff; color: var(--pitch-2);
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.5px;
+  box-shadow: 0 3px 0 rgba(4,10,7,0.35), 0 5px 8px rgba(4,10,7,0.3);
+  margin: 0 auto;
+}
+.fbf-score-points { font-family: 'IBM Plex Mono', monospace; font-size: 1.8rem; font-weight: bold; color: var(--high); }
+.fbf-progress-row { margin-top: 0.6rem; }
+.fbf-progress-label { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; color: var(--text-on-deep-secondary); margin-bottom: 0.2rem; }
+.fbf-progress-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden; margin-bottom: 0.5rem; }
+.fbf-progress-fill { height: 100%; background: var(--accent-2); border-radius: 999px; }
+.fbf-score-clockinfo { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--text-on-deep-secondary); text-align: center; margin-top: 0.4rem; }
+.fbf-score-clockinfo b { color: var(--high); }
+.fbf-possession-note { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: var(--gold); text-align: center; font-weight: bold; margin-top: 0.3rem; }
+
+.fbf-btn {
+  width: 100%; background: var(--accent-2); border: none; border-radius: 20px; padding: 0.9rem;
+  font-family: 'Nunito', sans-serif; font-weight: bold; font-size: 0.95rem;
+  color: #06170e; cursor: pointer; margin-top: 0.6rem; margin-bottom: 1.6rem;
+  box-shadow: 0 6px 0 var(--accent-shadow), 0 10px 16px rgba(4,10,7,0.4);
+}
+.fbf-btn:hover { filter: brightness(1.08); }
+.fbf-btn:active { transform: translateY(3px); box-shadow: 0 3px 0 var(--accent-shadow); }
+.fbf-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.fbf-btn.shoot { background: var(--gold); box-shadow: 0 6px 0 #8a6300, 0 10px 16px rgba(4,10,7,0.4); }
+.fbf-error { color: var(--card-red); font-size: 0.8rem; margin-top: 0.6rem; display: none; font-weight: bold; }
+.fbf-warn { background: var(--accent-2); border: none; border-radius: 18px; padding: 0.9rem 1.1rem; font-size: 0.84rem; color: #06170e; display: none; font-weight: bold; }
+.fbf-note { font-size: 0.64rem; color: var(--pitch-1); margin-top: 0.3rem; line-height: 1.5; }
+.fbf-waitbox { background: var(--pitch-2); border-radius: 18px; padding: 1rem 1.2rem; font-size: 0.82rem; color: var(--text-on-deep-secondary); text-align: center; }
+
+.fbf-guide {
+  background: var(--pitch-2); border-radius: 20px;
+  padding: 1rem 1.2rem; margin-bottom: 1.6rem;
+  box-shadow: 0 6px 0 -1px rgba(4,10,7,0.4), 0 10px 18px -4px var(--pitch-shadow);
+  font-size: 0.72rem; color: var(--text-on-deep-secondary); line-height: 1.7;
+}
+.fbf-guide-title {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--accent-1); font-weight: bold; margin-bottom: 0.65rem;
+}
+.fbf-guide-sep { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.75rem 0; }
+.fbf-guide-list { margin: 0.45rem 0 0; padding-left: 1.2rem; }
+.fbf-guide-list li { margin-bottom: 0.35rem; }
+
+@media (max-width: 520px) {
+  .fbf-side-row, .fbf-action-row { grid-template-columns: 1fr; }
+  .fbf-style-row { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="fbf">
+  <p class="fbf-eventname">Suwon-si High School Competition 2023</p>
+  <p class="fbf-eventsub">⚽ Football</p>
+
+  <div class="fbf-guide">
+    <div class="fbf-guide-title">Panduan Mengisi Form</div>
+    <ul class="fbf-guide-list">
+      <li>Pilih pertandingan, lalu pilih <b>nama karaktermu</b> dari roster tim. Sistem akan mengecek apakah akunmu yang login memang berhak roll sebagai karakter itu (akun terdaftar di roster, atau proxy yang diizinkan). Karakter yang tampil di deskripsi hasil roll dipilih otomatis oleh sistem berdasarkan posisi — bukan kamu yang memilih karakternya, "Nama Karakter" di atas cuma untuk validasi akses.</li>
+      <li>Saat timmu sedang <b>menyerang</b>, kamu bisa memilih Dribble atau Pass. Saat sedang <b>bertahan</b>, kamu memilih Tackle atau Interception — kecuali lawanmu sudah lebih dulu roll, di mana aksimu otomatis mengikuti aksi mereka (kamu tinggal roll).</li>
+      <li>Setiap roll — open-play maupun Shoot/Save — kamu juga memilih gaya main: <b>Pace</b>, <b>Power</b>, atau <b>Skill</b>. Pace mengalahkan Power, Power mengalahkan Skill, Skill mengalahkan Pace — gaya ini yang menentukan siapa menang duel. Kalau kedua tim pilih gaya yang sama, roll tertinggi yang menang (seperti biasa).</li>
+      <li>Kick off dan restart (mulai babak/extra time) selalu diawali Pass melawan Interception — belum bisa dribble sebelum operan pertama itu selesai.</li>
+      <li>Hasil roll ditampilkan langsung, tidak disembunyikan — jadi kalau kamu roll duluan, silakan cek halaman pertandingan sambil menunggu lawan menyelesaikan roll-nya.</li>
+      <li>Progress terus terkumpul untuk timmu (tidak hilang saat bola berpindah), dan begitu mencapai 50, tombol <b>Shoot!</b> akan muncul.</li>
+      <li>Kiper (GK) hanya bisa roll Save, dan hanya muncul saat tim lawan melakukan Shoot.</li>
+    </ul>
+  </div>
+
+  <div class="fbf-warn" id="fbf-warn">Kamu harus login terlebih dahulu sebelum roll.</div>
+
+  <div id="fbf-main" style="display:none;">
+    <div class="fbf-field">
+      <label class="fbf-label">Pertandingan</label>
+      <div class="fbf-dropdown" id="fbf-dropdown">
+        <button type="button" class="fbf-dropdown-btn" id="fbf-dropdown-btn" onclick="toggleDropdown(event)">— Pilih pertandingan —</button>
+        <div class="fbf-dropdown-list" id="fbf-dropdown-list"></div>
+      </div>
+    </div>
+
+    <div class="fbf-score" id="fbf-score" style="display:none;"></div>
+
+    <div class="fbf-field" id="fbf-char-field" style="display:none;">
+      <label class="fbf-label">Nama Karakter</label>
+      <div class="fbf-dropdown" id="fbf-char-dropdown">
+        <button type="button" class="fbf-dropdown-btn" id="fbf-char-dropdown-btn" onclick="toggleCharDropdown(event)">— Pilih karaktermu —</button>
+        <div class="fbf-dropdown-list" id="fbf-char-dropdown-list"></div>
+      </div>
+      <p class="fbf-note" id="fbf-char-status"></p>
+    </div>
+
+    <div id="fbf-action-area"></div>
+
+    <div class="fbf-field" id="fbf-ic-field" style="display:none;">
+      <label class="fbf-label">Narasi RP <span class="opt">(opsional)</span></label>
+      <textarea class="fbf-textarea" id="fbf-ic" placeholder="Narasi aksi tim/karaktermu sebelum roll ini (opsional)"></textarea>
+      <p class="fbf-note">Narasi akan ditampilkan di halaman pertandingan bersama hasil roll.</p>
+    </div>
+
+    <div id="fbf-submit-area"></div>
+
+    <div class="fbf-error" id="fbf-err"></div>
+  </div>
+</div>
+
+<div id="fbf-rolling" style="display:none; position:fixed; inset:0; background:#0f2818; z-index:9999; text-align:center;">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90%; max-width:420px;">
+    <div id="fbf-anim-stage">
+      <div id="fbf-lottie" style="width:100px; height:100px; margin:0 auto;"></div>
+      <div id="fbf-rolling-label" style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; letter-spacing:1px; color:#eef7f0; margin-top:1rem; font-weight:bold; line-height:1.6;">Rolling...</div>
+    </div>
+    <div id="fbf-reveal-stage" style="display:none; margin-top:1rem;">
+      <div id="fbf-row-mine" style="background:#eaf4ec; border-radius:16px; padding:1rem 1.2rem; margin-bottom:0.75rem; opacity:0.4; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.18); text-align:left;">
+        <div id="fbf-row-mine-name" style="font-family:'IBM Plex Mono',monospace; font-size:0.78rem; color:#0f2818; font-weight:bold;">—</div>
+        <div id="fbf-mine-action" style="font-family:'IBM Plex Mono',monospace; font-size:0.66rem; color:#2d6a4f; margin-top:0.25rem; font-style:italic;">—</div>
+        <div id="fbf-mine-rps" style="display:none; margin-top:0.7rem; align-items:center; justify-content:space-between;">
+          <div id="fbf-mine-style" style="font-family:'IBM Plex Mono',monospace; font-size:0.74rem; color:#0f2818; font-weight:bold;">—</div>
+          <div style="text-align:right;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#0f2818;">ROLL</div>
+            <div id="fbf-mine-roll" style="font-family:'IBM Plex Mono',monospace; font-size:1.8rem; color:#0f2818; font-weight:bold;">--</div>
+          </div>
+        </div>
+      </div>
+      <div id="fbf-row-opp" style="background:#eaf4ec; border-radius:16px; padding:1rem 1.2rem; margin-bottom:0.75rem; opacity:0.4; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.18); text-align:left;">
+        <div id="fbf-row-opp-name" style="font-family:'IBM Plex Mono',monospace; font-size:0.78rem; color:#0f2818; font-weight:bold;">—</div>
+        <div id="fbf-opp-action" style="font-family:'IBM Plex Mono',monospace; font-size:0.66rem; color:#2d6a4f; margin-top:0.25rem; font-style:italic;">—</div>
+        <div id="fbf-opp-rps" style="display:none; margin-top:0.7rem; align-items:center; justify-content:space-between;">
+          <div id="fbf-opp-style" style="font-family:'IBM Plex Mono',monospace; font-size:0.74rem; color:#0f2818; font-weight:bold;">—</div>
+          <div style="text-align:right;">
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#0f2818;">ROLL</div>
+            <div id="fbf-opp-roll" style="font-family:'IBM Plex Mono',monospace; font-size:1.8rem; color:#0f2818; font-weight:bold;">--</div>
+          </div>
+        </div>
+      </div>
+      <div id="fbf-margin-line" style="display:none; font-family:'IBM Plex Mono',monospace; font-size:0.85rem; color:#d8f3dc; font-weight:bold; margin-top:0.6rem; text-align:center;">—</div>
+      <div id="fbf-headline-line" style="display:none; font-family:'Josefin Sans',sans-serif; font-size:1.3rem; font-weight:bold; color:#d8f3dc; margin-top:0.9rem; text-align:center; line-height:1.4;">—</div>
+      <div id="fbf-full-desc" style="display:none; font-family:'IBM Plex Mono',monospace; font-size:0.72rem; color:#b7d9c4; margin-top:0.9rem; line-height:1.8; text-align:center;"></div>
+      <div id="fbf-waiting-text" style="display:none; font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:#b7d9c4; margin-top:0.6rem; text-align:center;">—</div>
+    </div>
+    <a href="#" id="fbf-goto-link" style="display:none; margin-top:1.5rem; font-family:'IBM Plex Mono',monospace; font-size:0.72rem; letter-spacing:1px; text-transform:uppercase; font-weight:bold; color:#08150d; background:#d8f3dc; padding:10px 20px; border-radius:999px; text-decoration:none; box-shadow:0 4px 0 #1b4332;">View Match Page →</a>
+  </div>
+</div>
+
+<style>
+@keyframes fbfFlicker { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+</style>
+
+<!-- Lottie player for the rolling animation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+
+<script>
+(function() {
+  var GAS        = 'https://script.google.com/macros/s/AKfycbwl_HjjMdZll4LxCxKl_X7GEioq_Ds5w3BApGUDn8QKKD9mqQb1DOaDmbINQCSFwdBQhg/exec';
+  var MATCH_PAGE = 'https://hakgyo.jcink.net/index.php?act=Pages&kid=footballmtch';
+  var LOTTIE_URL = 'https://raw.githubusercontent.com/hakgyorpf/shsc2023/refs/heads/main/soccer-ball.json';
+  var lottieAnim = null;
+  var loggedInUsername = '';
+  var matchMeta = {};
+  var curMatch = '';
+  var curSide = '';
+  var curCharacterName = '';
+  var selectedAction = '';
+  var selectedStyle = '';
+  var scoreData = null;
+  var rosterList = [];
+  var actionLoadingTimer = null;
+  var actionLoadingDone = false;
+  var pendingRollResult = null;
+
+  var ACTION_LABELS = {
+    dribble: 'Dribble!', pass: 'Pass!', tackle: 'Tackle!', interception: 'Intercept!',
+    shoot: 'Shoot!', save: 'Save!'
+  };
+  var STYLE_LABELS = { pace: '🏃 Pace', power: '💥 Power', skill: '🎯 Skill' };
+  var STYLE_TYPES = ['pace', 'power', 'skill'];
+  var SHOOT_TYPE_LABEL = {
+    open_play: 'Shoot!', penalty: 'Penalty Kick!', corner: 'Corner Kick!', freekick: 'Free Kick!'
+  };
+  var SHOOT_TYPE_BANNER = {
+    open_play: 'Progress 50+!', penalty: 'Penalti!', corner: 'Corner!', freekick: 'Free kick!'
+  };
+
+  // Overlay narration is ALL in English (Indonesian stays on the match
+  // page only) — these maps back the rolling-overlay stages: the
+  // present-participle text shown while "doing" the action, the English
+  // shoot-ready banner, and the English continuation used when describing
+  // what happens to the ball after a contest resolves.
+  var ACTION_VERBING = {
+    dribble: 'Dribbling...', pass: 'Passing...', tackle: 'Tackling...', interception: 'Intercepting...',
+    shoot: 'Shooting...', save: 'Saving...', kickoff: 'Kicking off...'
+  };
+  // Lowercase gerund (no leading capital, no "...") for the "is X-ing..."
+  // line shown under a character's name in the overlay's reveal boxes.
+  var ACTION_ING = {
+    dribble: 'dribbling', pass: 'passing', tackle: 'tackling', interception: 'intercepting',
+    shoot: 'shooting', save: 'saving'
+  };
+  var SHOOT_TYPE_BANNER_EN = {
+    open_play: 'Progress hits 50!', penalty: 'Penalty!', corner: 'Corner!', freekick: 'Free kick!'
+  };
+  var OUTCOME_CONTINUATION = {
+    open_play: function(att, def) { return att + ' still has the ball possession.'; },
+    throwin_attack: function(att, def) { return 'the ball goes out - throw-in for ' + att + '.'; },
+    throwin_defend: function(att, def) { return 'the ball goes out - throw-in for ' + def + '.'; },
+    goalkick: function(att, def) { return 'the ball goes out for a goal kick.'; },
+    corner: function(att, def) { return 'the ball goes out for a corner kick!'; },
+    foul: function(att, def) { return 'a foul is committed - free kick awarded.'; },
+    penalty: function(att, def) { return 'PENALTY!! A penalty kick is awarded.'; }
+  };
+
+  function esc(s) { var d=document.createElement('div'); d.appendChild(document.createTextNode(s==null?'':String(s))); return d.innerHTML; }
+
+  function matchAction(a) {
+    if (a === 'dribble') return 'tackle';
+    if (a === 'pass') return 'interception';
+    if (a === 'tackle') return 'dribble';
+    if (a === 'interception') return 'pass';
+    return a;
+  }
+
+  var x = new XMLHttpRequest();
+  x.open('GET', 'https://hakgyo.jcink.net/index.php?act=UserCP', true);
+  x.withCredentials = true;
+  x.onload = function() {
+    var html = x.responseText;
+    var ok = html.indexOf('You are not logged in') === -1 && html.indexOf('Welcome,') !== -1;
+    if (!ok) { document.getElementById('fbf-warn').style.display = 'block'; return; }
+    var m = html.match(/Welcome,\s*<a[^>]*class=['"]topname['"][^>]*>([^<]+)<\/a>/);
+    if (!m) { document.getElementById('fbf-warn').style.display = 'block'; document.getElementById('fbf-warn').textContent = 'Gagal mendeteksi akun. Coba muat ulang halaman.'; return; }
+    loggedInUsername = m[1].trim();
+    document.getElementById('fbf-main').style.display = 'block';
+    loadMatches();
+  };
+  x.send();
+
+  window.toggleDropdown = function(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('fbf-dropdown-list').classList.toggle('open');
+  };
+  window.toggleCharDropdown = function(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('fbf-char-dropdown-list').classList.toggle('open');
+  };
+  document.addEventListener('click', function() {
+    document.getElementById('fbf-dropdown-list').classList.remove('open');
+    document.getElementById('fbf-char-dropdown-list').classList.remove('open');
+  });
+
+  function loadMatches() {
+    var x2 = new XMLHttpRequest();
+    x2.open('GET', GAS + '?action=getMatches', true);
+    x2.onload = function() {
+      try {
+        var d = JSON.parse(x2.responseText);
+        var list = document.getElementById('fbf-dropdown-list');
+        list.innerHTML = '';
+        var matches = d.matches || [];
+        if (matches.length === 0) {
+          var e = document.createElement('div'); e.className = 'fbf-dropdown-item empty'; e.textContent = 'Tidak ada pertandingan yang sedang berlangsung.'; list.appendChild(e);
+        }
+        matches.forEach(function(m) {
+          matchMeta[m.code] = m;
+          var tag = ' [' + (m.matchType || 'PvNPC') + ']';
+          var label = m.code + ' — ' + m.schoolA + ' vs ' + m.schoolB + tag;
+          var item = document.createElement('div');
+          item.className = 'fbf-dropdown-item';
+          item.setAttribute('data-code', m.code);
+          item.textContent = label;
+          item.onclick = function(e) { e.stopPropagation(); onMatchSelected(m.code, label); };
+          list.appendChild(item);
+        });
+      } catch(e) {}
+    };
+    x2.send();
+  }
+
+  function onMatchSelected(code, label) {
+    curMatch = code;
+    curSide = '';
+    curCharacterName = '';
+    selectedAction = '';
+    selectedStyle = '';
+    document.getElementById('fbf-dropdown-btn').textContent = label || '— Pilih pertandingan —';
+    document.getElementById('fbf-dropdown-list').classList.remove('open');
+    document.getElementById('fbf-char-dropdown-btn').textContent = '— Pilih karaktermu —';
+    document.getElementById('fbf-char-status').textContent = '';
+    loadScore(code, true);
+    loadRoster(code);
+  }
+
+  function loadRoster(code) {
+    var xr = new XMLHttpRequest();
+    xr.open('GET', GAS + '?action=getRoster&matchCode=' + encodeURIComponent(code), true);
+    xr.onload = function() {
+      try {
+        var d = JSON.parse(xr.responseText);
+        rosterList = d.roster || [];
+        buildCharacterUI();
+      } catch(e) {}
+    };
+    xr.send();
+  }
+
+  function buildCharacterUI() {
+    var field = document.getElementById('fbf-char-field');
+    var list = document.getElementById('fbf-char-dropdown-list');
+    list.innerHTML = '';
+    if (!curMatch) { field.style.display = 'none'; return; }
+    field.style.display = 'block';
+    if (rosterList.length === 0) {
+      var e = document.createElement('div'); e.className = 'fbf-dropdown-item empty'; e.textContent = 'Belum ada karakter terdaftar di roster.'; list.appendChild(e);
+      return;
+    }
+    rosterList.forEach(function(c) {
+      var sideName = c.teamSide === 'A' ? (scoreData ? scoreData.schoolA : 'A') : (scoreData ? scoreData.schoolB : 'B');
+      var item = document.createElement('div');
+      item.className = 'fbf-dropdown-item';
+      item.textContent = c.characterName + ' — ' + sideName + (c.isNPC ? ' (NPC)' : '') + (c.injured ? ' [cedera]' : '');
+      item.onclick = function(e) { e.stopPropagation(); onCharacterSelected(c.characterName); };
+      list.appendChild(item);
+    });
+  }
+
+  function onCharacterSelected(characterName) {
+    curCharacterName = characterName;
+    curSide = '';
+    selectedAction = '';
+    selectedStyle = '';
+    document.getElementById('fbf-char-dropdown-btn').textContent = characterName;
+    document.getElementById('fbf-char-dropdown-list').classList.remove('open');
+    var statusEl = document.getElementById('fbf-char-status');
+    statusEl.textContent = 'Mengecek akses...';
+    statusEl.style.color = '';
+    var xa = new XMLHttpRequest();
+    xa.open('GET', GAS + '?action=checkAccess&matchCode=' + encodeURIComponent(curMatch) +
+      '&characterName=' + encodeURIComponent(characterName) + '&loggedInUsername=' + encodeURIComponent(loggedInUsername), true);
+    xa.onload = function() {
+      try {
+        var d = JSON.parse(xa.responseText);
+        if (!d.allowed) {
+          curSide = '';
+          statusEl.textContent = d.error || 'Kamu tidak punya akses untuk karakter ini.';
+          statusEl.style.color = 'var(--card-red)';
+          buildActionArea(scoreData);
+          return;
+        }
+        curSide = d.side;
+        statusEl.textContent = '';
+        buildActionArea(scoreData);
+      } catch(e) {
+        statusEl.textContent = 'Gagal mengecek akses. Coba lagi.';
+        statusEl.style.color = 'var(--card-red)';
+      }
+    };
+    xa.send();
+  }
+
+  function progressBar(label, val, color) {
+    var pct = Math.min(100, Math.round((val/50)*100));
+    return '<div class="fbf-progress-row"><div class="fbf-progress-label"><span>'+esc(label)+'</span><span>'+val+' / 50</span></div>' +
+      '<div class="fbf-progress-bar"><div class="fbf-progress-fill" style="width:'+pct+'%; background:'+color+';"></div></div></div>';
+  }
+
+  function loadScore(code, rebuildSideUI) {
+    var box = document.getElementById('fbf-score');
+    if (!code) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    box.innerHTML = '<span style="color:var(--text-on-deep-secondary)">Loading match state...</span>';
+    var x3 = new XMLHttpRequest();
+    x3.open('GET', GAS + '?action=getScore&matchCode=' + encodeURIComponent(code), true);
+    x3.onload = function() {
+      try {
+        var d = JSON.parse(x3.responseText);
+        if (d.error) { box.innerHTML = d.error; return; }
+        scoreData = d;
+        var html = '<div class="fbf-score-badges">';
+        html += '<span class="fbf-score-typebadge ' + (d.matchType==='PvP'?'pvp':'pvnpc') + '">' + d.matchType + '</span>';
+        html += '<span class="fbf-score-typebadge phase">' + (d.phase||'—') + (d.status==='active' ? (" · " + (d.halfMinute||0) + "'") : '') + '</span>';
+        html += '</div>';
+        html += '<div class="fbf-score-vs">';
+        html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolA||'') + '</div><div class="fbf-score-points">' + (d.scoreA||0) + '</div></div>';
+        html += '<div class="fbf-score-vsbutton">VS</div>';
+        html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolB||'') + '</div><div class="fbf-score-points">' + (d.scoreB||0) + '</div></div>';
+        html += '</div>';
+        html += progressBar(d.schoolA + ' progress', d.progressA||0, 'var(--accent-2)');
+        html += progressBar(d.schoolB + ' progress', d.progressB||0, 'var(--gold)');
+        if (d.status === 'active' && d.shootReady) {
+          var shootName = d.shootReady === 'A' ? d.schoolA : d.schoolB;
+          html += '<div class="fbf-possession-note">🎯 ' + esc(shootName) + ' sedang menembak</div>';
+        } else if (d.status === 'active' && d.teamInAttack) {
+          var attName = d.teamInAttack === 'A' ? d.schoolA : d.schoolB;
+          html += '<div class="fbf-possession-note">⚽ ' + esc(attName) + ' sedang menyerang</div>';
+        }
+        if (d.status === 'finished') html += '<div class="fbf-score-clockinfo">Match sudah selesai.</div>';
+        if (d.status === 'halftime') html += '<div class="fbf-score-clockinfo">Menunggu babak/fase berikutnya dimulai.</div>';
+        box.innerHTML = html;
+
+        if (rebuildSideUI) buildCharacterUI();
+        buildActionArea(d);
+      } catch(e) {}
+    };
+    x3.send();
+  }
+
+  // Client-side mirror of the backend's requireGkOwnerIfSave lock: a
+  // Save may only be rolled as the side's actually-registered GK
+  // (roster Position === 'GK'). Checking this here — before the
+  // rolling overlay opens — means a non-GK selection never gets as
+  // far as the animation before being told no; the backend still
+  // enforces the same rule as the source of truth.
+  function isCurCharacterGK() {
+    for (var i = 0; i < rosterList.length; i++) {
+      if (rosterList[i].characterName === curCharacterName) return rosterList[i].position === 'GK';
+    }
+    return false;
+  }
+
+  function renderStylePicker(area) {
+    var wrap = document.createElement('div');
+    wrap.className = 'fbf-style-row';
+    STYLE_TYPES.forEach(function(st) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fbf-style-btn';
+      b.textContent = STYLE_LABELS[st];
+      if (selectedStyle === st) b.classList.add('selected');
+      b.onclick = function() {
+        selectedStyle = st;
+        wrap.querySelectorAll('.fbf-style-btn').forEach(function(x){ x.classList.remove('selected'); });
+        b.classList.add('selected');
+      };
+      wrap.appendChild(b);
+    });
+    area.appendChild(wrap);
+    var hint = document.createElement('div');
+    hint.className = 'fbf-style-hint';
+    hint.textContent = 'Pace > Power > Skill > Pace — gaya ini menentukan siapa menang duel.';
+    area.appendChild(hint);
+  }
+
+  function buildActionArea(d) {
+    var area = document.getElementById('fbf-action-area');
+    var submitArea = document.getElementById('fbf-submit-area');
+    var icField = document.getElementById('fbf-ic-field');
+    area.innerHTML = '';
+    submitArea.innerHTML = '';
+    if (!curCharacterName || !curSide) { icField.style.display = 'none'; return; }
+    if (!d || d.status === 'finished') { icField.style.display = 'none'; return; }
+
+    // Not kicked off yet
+    if (!d.teamInAttack) {
+      icField.style.display = 'none';
+      var kbtn = document.createElement('button');
+      kbtn.className = 'fbf-btn'; kbtn.textContent = 'Kick Off! ⚽';
+      kbtn.onclick = doKickoff;
+      submitArea.appendChild(kbtn);
+      return;
+    }
+
+    if (d.status === 'halftime') { icField.style.display = 'none'; renderAdminControls(submitArea, d); return; }
+
+    // Shoot flow
+    var shootSide = d.shootReady;
+    var gkSide = shootSide === 'A' ? 'B' : 'A';
+    if (shootSide) {
+      if (d.pendingShootRole) {
+        if (d.pendingShootSide === curSide) {
+          area.innerHTML = '<div class="fbf-waitbox">Kamu sudah roll. Menunggu tim lawan menyelesaikan tembakan...</div>';
+          icField.style.display = 'none';
+          return;
+        }
+        // GK-only lock, checked client-side BEFORE the rolling overlay
+        // ever opens — the backend enforces this too (requireGkOwnerIfSave),
+        // but catching it here means a non-GK character never sees the
+        // animation flash before the error.
+        if (curSide !== shootSide && !isCurCharacterGK()) {
+          area.innerHTML = '<div class="fbf-waitbox">Hanya kiper terdaftar tim ini yang bisa roll Save. Pilih karakter kiper di atas.</div>';
+          icField.style.display = 'none';
+          return;
+        }
+        icField.style.display = 'block';
+        selectedStyle = '';
+        renderStylePicker(area);
+        var rbtn = document.createElement('button');
+        rbtn.className = 'fbf-btn shoot';
+        rbtn.textContent = curSide === shootSide ? 'Roll Shoot!' : 'Roll Save!';
+        rbtn.onclick = doShoot;
+        submitArea.appendChild(rbtn);
+        return;
+      }
+      if (curSide === shootSide) {
+        icField.style.display = 'block';
+        selectedStyle = '';
+        renderStylePicker(area);
+        var sbtn = document.createElement('button');
+        sbtn.className = 'fbf-btn shoot';
+        sbtn.textContent = (SHOOT_TYPE_LABEL[d.shootType] || 'Shoot!') + ' ⚽';
+        sbtn.onclick = doShoot;
+        submitArea.appendChild(sbtn);
+        return;
+      }
+      // PvNPC/NPCvNPC: the shooting side is NPC-controlled, and the NPC's
+      // shot resolves automatically in the SAME call as the human GK's
+      // Save — there's no separate "shooter goes first" step to wait on
+      // (see resolvePvNPCShoot on the backend). So the GK always has an
+      // action available immediately, no waiting box. PvP still waits
+      // here, since there the shooter really does have to roll first.
+      if (curSide === gkSide && (d.matchType === 'PvNPC' || d.matchType === 'NPCvNPC')) {
+        icField.style.display = 'block';
+        var npcNote = document.createElement('div');
+        npcNote.className = 'fbf-note';
+        npcNote.style.marginBottom = '0.5rem';
+        npcNote.textContent = (shootSide === 'A' ? d.schoolA : d.schoolB) + ' menembak! Giliran kiper ' + (gkSide === 'A' ? d.schoolA : d.schoolB) + ' roll.';
+        area.appendChild(npcNote);
+        if (!isCurCharacterGK()) {
+          var gkBlock = document.createElement('div');
+          gkBlock.className = 'fbf-waitbox';
+          gkBlock.textContent = 'Hanya kiper terdaftar tim ini yang bisa roll Save. Pilih karakter kiper di atas.';
+          area.appendChild(gkBlock);
+          icField.style.display = 'none';
+          return;
+        }
+        selectedStyle = '';
+        renderStylePicker(area);
+        var nsbtn = document.createElement('button');
+        nsbtn.className = 'fbf-btn shoot';
+        nsbtn.textContent = 'Save!';
+        nsbtn.onclick = doShoot;
+        submitArea.appendChild(nsbtn);
+        return;
+      }
+      area.innerHTML = '<div class="fbf-waitbox">Menunggu ' + esc(shootSide==='A'?d.schoolA:d.schoolB) + ' melakukan tembakan...</div>';
+      icField.style.display = 'none';
+      return;
+    }
+
+    // Open-play contest
+    if (d.pendingRole) {
+      if (d.pendingSide === curSide) {
+        area.innerHTML = '<div class="fbf-waitbox">Kamu sudah roll. Menunggu tim lawan...</div>';
+        icField.style.display = 'none';
+        return;
+      }
+      var lockedAction = matchAction(d.pendingAction);
+      icField.style.display = 'block';
+      selectedStyle = '';
+      renderStylePicker(area);
+      var abtn = document.createElement('button');
+      abtn.className = 'fbf-btn';
+      abtn.textContent = 'Roll ' + ACTION_LABELS[lockedAction];
+      abtn.onclick = function() { selectedAction = lockedAction; doRoll(); };
+      submitArea.appendChild(abtn);
+      return;
+    }
+
+    // First mover — choose action
+    var myRole = curSide === d.teamInAttack ? 'attack' : 'defend';
+    icField.style.display = 'block';
+
+    // Kickoff/restart: the pass hasn't happened yet, so nobody can
+    // dribble or tackle — forced into Pass (attack) / Interception
+    // (defend), same as the server enforces regardless of what's sent.
+    if (d.kickoffPending) {
+      var koNote = document.createElement('div');
+      koNote.className = 'fbf-note';
+      koNote.style.marginBottom = '0.5rem';
+      koNote.textContent = 'Kick off! Bola belum bisa digiring — operan dulu.';
+      area.appendChild(koNote);
+      selectedStyle = '';
+      renderStylePicker(area);
+      var forcedAction = myRole === 'attack' ? 'pass' : 'interception';
+      var kobtn = document.createElement('button');
+      kobtn.className = 'fbf-btn';
+      kobtn.textContent = 'Roll ' + ACTION_LABELS[forcedAction];
+      kobtn.onclick = function() { selectedAction = forcedAction; doRoll(); };
+      submitArea.appendChild(kobtn);
+      return;
+    }
+
+    selectedStyle = '';
+    var options = myRole === 'attack' ? ['dribble','pass'] : ['tackle','interception'];
+    var rowDiv = document.createElement('div');
+    rowDiv.className = 'fbf-action-row';
+    options.forEach(function(opt) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fbf-action-btn';
+      b.textContent = ACTION_LABELS[opt];
+      b.onclick = function() {
+        selectedAction = opt;
+        rowDiv.querySelectorAll('.fbf-action-btn').forEach(function(x){ x.classList.remove('selected'); });
+        b.classList.add('selected');
+      };
+      rowDiv.appendChild(b);
+    });
+    area.appendChild(rowDiv);
+    renderStylePicker(area);
+    var goBtn = document.createElement('button');
+    goBtn.className = 'fbf-btn';
+    goBtn.textContent = 'Roll ↯';
+    goBtn.onclick = doRoll;
+    submitArea.appendChild(goBtn);
+  }
+
+  function renderAdminControls(area, d) {
+    if (loggedInUsername !== 'Seonbi') {
+      area.innerHTML = '<div class="fbf-waitbox">Menunggu babak/fase berikutnya dimulai oleh admin.</div>';
+      return;
+    }
+    var btn = document.createElement('button');
+    btn.className = 'fbf-btn';
+    if (d.phase === 'H1') { btn.textContent = 'Mulai Babak Kedua'; btn.onclick = function(){ doPhaseAction('startSecondHalf'); }; }
+    else { btn.textContent = 'Mulai Extra Time'; btn.onclick = function(){ doPhaseAction('startExtraTime'); }; }
+    area.appendChild(btn);
+  }
+
+  function doPhaseAction(action) {
+    var x = new XMLHttpRequest();
+    x.open('POST', GAS, true);
+    x.setRequestHeader('Content-Type', 'text/plain');
+    x.onload = function() { loadScore(curMatch, false); };
+    x.send(JSON.stringify({ action: action, matchCode: curMatch }));
+  }
+
+  function showErr(msg) { var el = document.getElementById('fbf-err'); el.textContent = msg; el.style.display = 'block'; }
+
+  function doKickoff() {
+    var err = document.getElementById('fbf-err'); err.style.display = 'none';
+    if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
+    if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
+    beginRolling(ACTION_VERBING.kickoff);
+    postGAS({ action: 'kickoff', matchCode: curMatch, characterName: curCharacterName, loggedInUsername: loggedInUsername }, function(d) {
+      if (d.error) { hideRolling(); showErr(d.error); return; }
+      afterAnim(d, runKickoffReveal);
+    });
+  }
+
+  function doRoll() {
+    var err = document.getElementById('fbf-err'); err.style.display = 'none';
+    if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
+    if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
+    if (!selectedAction) { showErr('Pilih aksi dulu.'); return; }
+    if (!selectedStyle) { showErr('Pilih gaya main dulu: Pace, Power, atau Skill.'); return; }
+    var ic = document.getElementById('fbf-ic').value.trim();
+    beginRolling(ACTION_VERBING[selectedAction] || 'Rolling...');
+    postGAS({ action: 'submitRoll', matchCode: curMatch, characterName: curCharacterName, chosenAction: selectedAction, styleType: selectedStyle, icLine: ic, loggedInUsername: loggedInUsername }, function(d) {
+      if (d.error) { hideRolling(); showErr(d.error); return; }
+      afterAnim(d, runContestReveal);
+    });
+  }
+
+  function doShoot() {
+    var err = document.getElementById('fbf-err'); err.style.display = 'none';
+    if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
+    if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
+    if (!selectedStyle) { showErr('Pilih gaya main dulu: Pace, Power, atau Skill.'); return; }
+    var ic = document.getElementById('fbf-ic').value.trim();
+    var actingAsShooter = scoreData && curSide === scoreData.shootReady;
+    beginRolling(actingAsShooter ? ACTION_VERBING.shoot : ACTION_VERBING.save);
+    postGAS({ action: 'submitShoot', matchCode: curMatch, characterName: curCharacterName, styleType: selectedStyle, icLine: ic, loggedInUsername: loggedInUsername }, function(d) {
+      if (d.error) { hideRolling(); showErr(d.error); return; }
+      afterAnim(d, runShootReveal);
+    });
+  }
+
+  // ---- Rolling overlay: multi-stage reveal (English narration) ----
+  // 1. anim-stage: a short "doing the action" beat, held ~3s regardless
+  //    of how fast the server answers (afterAnim queues the response
+  //    until the beat finishes, mirroring Badminton's pattern).
+  // 2. reveal-stage, box 1: name + "is X-ing..." only.
+  // 3. reveal-stage, box 2: name + "is X-ing..." only.
+  // 4. back to box 1: style + dice roll.
+  // 5. box 2: style + dice roll.
+  // 6. margin, then the succeed/fail headline, then the full narrative
+  //    description — each appearing in turn — and only then does the
+  //    "View Match Page" link show up.
+
+  function afterAnim(d, fn) {
+    if (actionLoadingDone) { fn(d); return; }
+    pendingRollResult = { d: d, fn: fn };
+  }
+
+  function rollAnim(el, finalVal, duration) {
+    el.style.animation = 'fbfFlicker 0.08s linear infinite';
+    var interval = setInterval(function() { el.textContent = Math.floor(Math.random()*100)+1; }, 80);
+    setTimeout(function() { clearInterval(interval); el.style.animation = ''; el.textContent = finalVal; }, duration);
+  }
+
+  // Phase 1 of a box's reveal: just the character's name and what
+  // they're doing ("is tackling..."), no style or roll yet.
+  function showBoxIntro(prefix, name, actionText) {
+    var row = document.getElementById('fbf-row-' + prefix);
+    row.style.display = 'block';
+    row.style.opacity = '1';
+    document.getElementById('fbf-row-' + prefix + '-name').textContent = name;
+    document.getElementById('fbf-' + prefix + '-action').textContent = actionText;
+  }
+
+  // Phase 2: reveal that box's chosen style and animate its roll into place.
+  function revealBoxRoll(prefix, styleText, roll, duration, callback) {
+    var rps = document.getElementById('fbf-' + prefix + '-rps');
+    rps.style.display = 'flex';
+    document.getElementById('fbf-' + prefix + '-style').textContent = styleText;
+    rollAnim(document.getElementById('fbf-' + prefix + '-roll'), roll, duration);
+    setTimeout(callback, duration);
+  }
+
+  function showRevealStage() {
+    document.getElementById('fbf-anim-stage').style.display = 'none';
+    document.getElementById('fbf-reveal-stage').style.display = 'block';
+    document.getElementById('fbf-margin-line').style.display = 'none';
+    document.getElementById('fbf-headline-line').style.display = 'none';
+    document.getElementById('fbf-full-desc').style.display = 'none';
+    document.getElementById('fbf-waiting-text').style.display = 'none';
+    ['mine', 'opp'].forEach(function(p) {
+      var row = document.getElementById('fbf-row-' + p);
+      row.style.display = 'none'; row.style.opacity = '0.4';
+      document.getElementById('fbf-' + p + '-rps').style.display = 'none';
+      document.getElementById('fbf-' + p + '-name').textContent = '—';
+      document.getElementById('fbf-' + p + '-action').textContent = '—';
+      document.getElementById('fbf-' + p + '-roll').textContent = '--';
+    });
+    document.getElementById('fbf-goto-link').style.display = 'none';
+  }
+
+  function showMargin(margin) {
+    var el = document.getElementById('fbf-margin-line');
+    el.style.display = 'block';
+    el.textContent = 'Margin: ' + margin;
+  }
+
+  function showHeadline(text) {
+    var el = document.getElementById('fbf-headline-line');
+    el.style.display = 'block';
+    el.textContent = text;
+  }
+
+  function showFullDesc(html) {
+    var el = document.getElementById('fbf-full-desc');
+    el.style.display = 'block';
+    el.innerHTML = html || '';
+  }
+
+  function showGoLink(code) {
+    var a = document.getElementById('fbf-goto-link');
+    a.href = MATCH_PAGE + (MATCH_PAGE.indexOf('?')===-1?'?':'&') + 'match=' + encodeURIComponent(code);
+    a.style.display = 'inline-block';
+    loadScore(curMatch, false);
+  }
+
+  function runKickoffReveal(d) {
+    var meta = matchMeta[curMatch] || {};
+    var attName = curSide === d.teamInAttack ? meta.schoolA : meta.schoolB;
+    showRevealStage();
+    showHeadline('Kick off! ⚽');
+    showFullDesc(esc(attName) + ' starts the half.');
+    showGoLink(curMatch);
+  }
+
+  function contestHeadline(d) {
+    var defendWon = d.winnerSide === d.defend.side;
+    var label = ACTION_LABELS[d.defend.action] ? ACTION_LABELS[d.defend.action].replace('!','') : 'Tackle';
+    return label + (defendWon ? ' succeeded!' : ' failed!');
+  }
+
+  function contestNarrative(d, meta) {
+    var attName = esc(d.attack.character), defName = esc(d.defend.character);
+    var attSchool = esc(d.attack.side === 'A' ? meta.schoolA : meta.schoolB);
+    var defSchool = esc(d.defend.side === 'A' ? meta.schoolA : meta.schoolB);
+    var defendWon = d.winnerSide === d.defend.side;
+    var main;
+    if (defendWon) {
+      // A defend win here is always a clean, legal challenge — fouls only
+      // ever occur on the OTHER branch (defend losing), so this phrasing
+      // is safe to use unconditionally and makes clear no foul happened.
+      var cleanVerb = d.defend.action === 'interception'
+        ? ('Clean interception from ' + defName + ' on ' + attName + "'s pass")
+        : ('Clean tackle from ' + defName + ' on ' + attName);
+      main = cleanVerb + ' - ' + defSchool + ' has the ball possession now.';
+      if (d.outcome && d.outcome !== 'open_play' && OUTCOME_CONTINUATION[d.outcome]) {
+        var note = OUTCOME_CONTINUATION[d.outcome](attSchool, defSchool);
+        main += '<br>' + note.charAt(0).toUpperCase() + note.slice(1);
+      }
+    } else {
+      var verb = d.defend.action === 'interception' ? 'intercepted' : 'tackled';
+      var cont = OUTCOME_CONTINUATION[d.outcome] ? OUTCOME_CONTINUATION[d.outcome](attSchool, defSchool) : (attSchool + ' still has the ball possession.');
+      main = defName + ' ' + verb + ' ' + attName + ' but failed to get the ball - ' + cont;
+    }
+    return main;
+  }
+
+  function runContestReveal(d) {
+    var meta = matchMeta[curMatch] || {};
+    showRevealStage();
+
+    if (d.status === 'pending') {
+      document.getElementById('fbf-row-opp').style.display = 'none';
+      showBoxIntro('mine', esc(d.myCharacter), 'is ' + (ACTION_ING[d.myAction] || 'rolling') + '...');
+      setTimeout(function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, 2000, function() {
+          var waiting = document.getElementById('fbf-waiting-text');
+          waiting.style.display = 'block';
+          waiting.textContent = 'Waiting for ' + esc(d.waitingFor==='A'?meta.schoolA:meta.schoolB) + ' to roll...';
+          showGoLink(curMatch);
+        });
+      }, 700);
+      return;
+    }
+
+    var attSchool = d.attack.side === 'A' ? meta.schoolA : meta.schoolB;
+    var defSchool = d.defend.side === 'A' ? meta.schoolA : meta.schoolB;
+
+    // 1) name + "is X-ing..." for the attacker's box, then the defender's.
+    // 2) back to the attacker's box for style + dice, then the defender's.
+    // 3) margin, then the succeed/fail headline, then the full narrative.
+    showBoxIntro('mine', esc(d.attack.character) + ' (' + esc(attSchool) + ')', 'is ' + ACTION_ING[d.attack.action] + '...');
+    setTimeout(function() {
+      showBoxIntro('opp', esc(d.defend.character) + ' (' + esc(defSchool) + ')', 'is ' + ACTION_ING[d.defend.action] + '...');
+      setTimeout(function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.attack.style] || '', d.attack.roll, 2000, function() {
+          revealBoxRoll('opp', STYLE_LABELS[d.defend.style] || '', d.defend.roll, 2000, function() {
+            showMargin(d.margin);
+            setTimeout(function() {
+              showHeadline(contestHeadline(d));
+              setTimeout(function() {
+                var detail = contestNarrative(d, meta);
+                if (d.incident && d.incident.cardTier) {
+                  detail += '<br>[' + d.incident.cardTier + ' Card] ' + esc(d.incident.cardCharacter);
+                }
+                if (d.incident && d.incident.injuryOccurred) {
+                  detail += '<br>' + esc(d.incident.injuredCharacter) + ' is injured.';
+                }
+                if (d.shootReady) {
+                  detail += '<br><b>' + (SHOOT_TYPE_BANNER_EN[d.shootType] || 'Progress hits 50!') + ' ' + esc(d.shootReady==='A'?meta.schoolA:meta.schoolB) + ' can Shoot now.</b>';
+                }
+                showFullDesc(detail);
+                showGoLink(curMatch);
+              }, 1200);
+            }, 700);
+          });
+        });
+      }, 700);
+    }, 700);
+  }
+
+  function shootNarrative(d) {
+    var shooter = esc(d.shoot.character), gk = esc(d.save.character);
+    if (d.outcome === 'goal') return shooter + ' scored past ' + gk + " - it's a GOAL!";
+    if (d.outcome === 'offside') return shooter + "'s shot is called back for offside - no goal.";
+    return shooter + "'s shot was saved by " + gk + ' - no goal.';
+  }
+
+  function runShootReveal(d) {
+    showRevealStage();
+
+    if (d.status === 'pending') {
+      document.getElementById('fbf-row-opp').style.display = 'none';
+      showBoxIntro('mine', esc(d.myCharacter), 'is shooting...');
+      setTimeout(function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, 2000, function() {
+          var waiting = document.getElementById('fbf-waiting-text');
+          waiting.style.display = 'block';
+          waiting.textContent = 'Waiting for the opponent to roll...';
+          showGoLink(curMatch);
+        });
+      }, 700);
+      return;
+    }
+
+    showBoxIntro('mine', esc(d.shoot.character), 'is shooting...');
+    setTimeout(function() {
+      showBoxIntro('opp', esc(d.save.character), 'is saving...');
+      setTimeout(function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.shoot.style] || '', d.shoot.roll, 2000, function() {
+          revealBoxRoll('opp', STYLE_LABELS[d.save.style] || '', d.save.roll, 2000, function() {
+            showMargin(d.margin);
+            setTimeout(function() {
+              var headline = d.outcome === 'goal' ? 'GOAL! ⚽' : d.outcome === 'offside' ? 'Offside — no goal.' : 'Saved!';
+              showHeadline(headline);
+              setTimeout(function() {
+                var detail = '<i>' + shootNarrative(d) + '</i>';
+                detail += '<br><br><b style="font-size:1.2em;">Score now: ' + d.scoreA + ' – ' + d.scoreB + '</b>';
+                showFullDesc(detail);
+                showGoLink(curMatch);
+              }, 1200);
+            }, 700);
+          });
+        });
+      }, 700);
+    }, 700);
+  }
+
+  function postGAS(payload, cb) {
+    var xr = new XMLHttpRequest();
+    xr.open('POST', GAS, true);
+    xr.timeout = 25000;
+    xr.setRequestHeader('Content-Type', 'text/plain');
+    xr.onload = function() {
+      try { cb(JSON.parse(xr.responseText)); }
+      catch(e) {
+        // Log the raw body so a repeat of this error can actually be
+        // diagnosed (e.g. an HTML auth/error page from Google instead of
+        // JSON) instead of just showing a generic message every time.
+        console.error('postGAS: non-JSON response (status ' + xr.status + '):', xr.responseText);
+        hideRolling();
+        showErr('Server mengembalikan respons yang tidak valid. Coba lagi.');
+      }
+    };
+    xr.onerror = function() { hideRolling(); showErr('Koneksi ke server gagal.'); };
+    xr.ontimeout = function() { hideRolling(); showErr('Server terlalu lama merespons. Coba lagi.'); };
+    xr.send(JSON.stringify(payload));
+  }
+
+  function initLottie() {
+    if (lottieAnim || typeof lottie === 'undefined') return;
+    lottieAnim = lottie.loadAnimation({
+      container: document.getElementById('fbf-lottie'),
+      renderer: 'svg',
+      loop: true,
+      autoplay: true,
+      path: LOTTIE_URL
+    });
+  }
+
+  function beginRolling(label) {
+    actionLoadingDone = false;
+    pendingRollResult = null;
+    document.getElementById('fbf-rolling').style.display = 'block';
+    document.getElementById('fbf-anim-stage').style.display = 'block';
+    document.getElementById('fbf-reveal-stage').style.display = 'none';
+    document.getElementById('fbf-goto-link').style.display = 'none';
+    document.getElementById('fbf-rolling-label').textContent = label;
+    initLottie();
+    clearTimeout(actionLoadingTimer);
+    actionLoadingTimer = setTimeout(function() {
+      actionLoadingTimer = null;
+      actionLoadingDone = true;
+      if (pendingRollResult) {
+        var result = pendingRollResult;
+        pendingRollResult = null;
+        result.fn(result.d);
+      }
+    }, 3000);
+  }
+  function hideRolling() {
+    clearTimeout(actionLoadingTimer);
+    actionLoadingTimer = null;
+    pendingRollResult = null;
+    document.getElementById('fbf-rolling').style.display = 'none';
+  }
+})();
+</script>
