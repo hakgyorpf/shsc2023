@@ -1051,6 +1051,32 @@ function pickFlavorCharacter(matchCode, side, excludeNames) {
   return pick.data[2];
 }
 
+// Weighted flavor pick for the "intended pass recipient" named in the
+// Match Page's interception narrative — GK always excluded (never a
+// realistic mid-play short-passing target), DF included but at a much
+// lower weight than MF/FW (a pressured back-pass happens, but rarely
+// compared to passing forward). Per-player pool like pickWeightedCharacter,
+// so a side with more DF still skews toward MF/FW overall.
+function pickFlavorTeammate(matchCode, side, excludeNames) {
+  var weights = { DF: 1, MF: 4, FW: 4 };
+  var pool = [];
+  getRosterRows(matchCode).forEach(function (r) {
+    if (r.data[1] !== side || r.data[3] === 'GK' || excludeNames.indexOf(r.data[2]) !== -1) return;
+    var w = weights[r.data[3]] || 0;
+    if (w > 0) pool.push({ name: r.data[2], w: w });
+  });
+  if (!pool.length) return 'pemain lawan';
+
+  var totalWeight = pool.reduce(function (s, p) { return s + p.w; }, 0);
+  var roll = Math.random() * totalWeight;
+  var acc = 0;
+  for (var i = 0; i < pool.length; i++) {
+    acc += pool[i].w;
+    if (roll <= acc) return pool[i].name;
+  }
+  return pool[pool.length - 1].name;
+}
+
 function readIncidentConfig() {
   if (_cfgCache._incident) return _cfgCache._incident;
   var sheet = getFootballSpreadsheet().getSheetByName('Config_Incident');
@@ -1550,12 +1576,11 @@ function resolveContest(found, attackSide, defendSide, attackData, defendData, s
 
   // Flavor only (doesn't affect scoring) — the Match Page feed narrates an
   // Interception as "intercepted X's pass to TEAMMATE"; pick that
-  // teammate once here (same non-weighted pickFlavorCharacter the Shoot
-  // flavor templates already use for {teammate}/{opponent}) and persist
-  // it in RollLog so every future view of this roll shows the same name,
-  // instead of re-randomizing on every page load.
+  // teammate once here (pickFlavorTeammate — GK excluded, DF weighted
+  // low vs MF/FW) and persist it in RollLog so every future view of this
+  // roll shows the same name, instead of re-randomizing on every page load.
   var flavorTeammate = defendData.action === 'interception'
-    ? pickFlavorCharacter(m[0], attackData.side, [attackData.character])
+    ? pickFlavorTeammate(m[0], attackData.side, [attackData.character])
     : '';
 
   var rollId = Utilities.getUuid().slice(0, 8);
