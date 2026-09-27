@@ -1,0 +1,256 @@
+// ============================================================
+// SHSC 2023 — Team Chat (shoutbox) backend
+// Lets registered members chat with their own team during the
+// championship. Each chat "Room" is gated to a list of forum
+// usernames (ChatMembers sheet) so opponents can't read a team's
+// private chat even if they get the link — same idea as football's
+// Roster/Username gating. An admin (CHAT_ADMIN_USERNAMES) can read
+// or post in every room and delete any message.
+// ============================================================
+//
+// ONE-TIME SETUP:
+//   1. Create a new Google Sheet, copy its ID into CHAT_SHEET_ID below.
+//   2. Run setupChatSheets() once from the Apps Script editor (creates
+//      ChatMessages / ChatRooms / ChatMembers tabs with headers).
+//   3. Fill in ChatRooms (Room code, display Label) and ChatMembers
+//      (Room code, forum Username) directly in the Sheet — one row per
+//      member per room. No redeploy needed to add/remove members later.
+//   4. Deploy > New deployment > Web app, execute as Me, access Anyone.
+//      Paste the resulting /exec URL into "Team Chat Page" as GAS_URL_HERE.
+//
+// SHEET TABS:
+//   ChatMessages — [0] Id (ms timestamp, also sort/poll cursor)
+//                  [1] Timestamp (ISO string)
+//                  [2] Room
+//                  [3] Username
+//                  [4] Message
+//   ChatRooms    — [0] Room  [1] Label (display name shown in the room switcher)
+//   ChatMembers  — [0] Room  [1] Username (one row per member per room)
+// ============================================================
+
+var CHAT_SHEET_ID = 'PUT_YOUR_SHEET_ID_HERE';
+
+// Admins can read/post in every room (no membership check) and delete
+// any message. Same convention as FOOTBALL_ADMIN_USERNAMES.
+var CHAT_ADMIN_USERNAMES = ['Seonbi'];
+function isChatAdmin(username) {
+  return CHAT_ADMIN_USERNAMES.indexOf(username) !== -1;
+}
+
+var CHAT_MAX_MESSAGE_LENGTH = 500;
+var CHAT_HISTORY_LIMIT = 100; // how many past messages to send on first load
+var CHAT_POST_COOLDOWN_SECONDS = 2; // per-user, per-room flood guard
+
+// Apps Script may reuse the same server instance across requests.
+var CHAT_SS = null;
+function getChatSpreadsheet() {
+  if (!CHAT_SS) CHAT_SS = SpreadsheetApp.openById(CHAT_SHEET_ID);
+  return CHAT_SS;
+}
+
+function setupChatSheets() {
+  var ss = getChatSpreadsheet();
+
+  var msgs = ss.getSheetByName('ChatMessages') || ss.insertSheet('ChatMessages');
+  if (msgs.getLastRow() === 0) {
+    msgs.appendRow(['Id', 'Timestamp', 'Room', 'Username', 'Message']);
+  }
+
+  var rooms = ss.getSheetByName('ChatRooms') || ss.insertSheet('ChatRooms');
+  if (rooms.getLastRow() === 0) {
+    rooms.appendRow(['Room', 'Label']);
+  }
+
+  var members = ss.getSheetByName('ChatMembers') || ss.insertSheet('ChatMembers');
+  if (members.getLastRow() === 0) {
+    members.appendRow(['Room', 'Username']);
+  }
+}
+
+// ============================================================
+// WEB APP HANDLERS
+// ============================================================
+
+function safeJsonOutput(result) {
+  if (result === undefined || result === null) {
+    result = { error: 'Aksi tidak mengembalikan hasil apa pun (bug internal). Coba lagi.' };
+  }
+  var json;
+  try {
+    json = JSON.stringify(result);
+  } catch (stringifyErr) {
+    json = JSON.stringify({ error: 'Gagal membentuk respons JSON: ' + stringifyErr.toString() });
+  }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var result = routePost(data);
+    return safeJsonOutput(result);
+  } catch (err) {
+    return safeJsonOutput({ error: err.toString() });
+  }
+}
+
+function doGet(e) {
+  try {
+    var result = routeGet(e.parameter);
+    return safeJsonOutput(result);
+  } catch (err) {
+    return safeJsonOutput({ error: err.toString() });
+  }
+}
+
+function routePost(data) {
+  if (data.action === 'postMessage')   return postMessage(data);
+  if (data.action === 'deleteMessage') return deleteMessage(data);
+  return { error: 'Unknown action: ' + data.action };
+}
+
+function routeGet(params) {
+  if (params.action === 'getMyRooms') return getMyRooms(params);
+  if (params.action === 'getMessages') return getMessages(params);
+  return { error: 'Unknown action: ' + params.action };
+}
+
+// ============================================================
+// ROOM / MEMBERSHIP LOOKUP
+// ============================================================
+
+function getRoomMembers(room) {
+  var sheet = getChatSpreadsheet().getSheetByName('ChatMembers');
+  var rows = sheet.getDataRange().getValues();
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    if ((rows[i][0] || '').toString().trim() === room) {
+      out.push((rows[i][1] || '').toString().trim());
+    }
+  }
+  return out;
+}
+
+function isRoomMember(room, username) {
+  if (isChatAdmin(username)) return true;
+  return getRoomMembers(room).indexOf(username) !== -1;
+}
+
+function getRoomLabels() {
+  var sheet = getChatSpreadsheet().getSheetByName('ChatRooms');
+  var rows = sheet.getDataRange().getValues();
+  var map = {};
+  for (var i = 1; i < rows.length; i++) {
+    var code = (rows[i][0] || '').toString().trim();
+    if (code) map[code] = (rows[i][1] || code).toString();
+  }
+  return map;
+}
+
+function getMyRooms(params) {
+  var username = (params.username || '').toString().trim();
+  if (!username) return { error: 'missing_username' };
+
+  var labels = getRoomLabels();
+  var admin = isChatAdmin(username);
+  var codes = [];
+
+  if (admin) {
+    codes = Object.keys(labels);
+  } else {
+    var sheet = getChatSpreadsheet().getSheetByName('ChatMembers');
+    var rows = sheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      if ((rows[i][1] || '').toString().trim() === username) {
+        var code = (rows[i][0] || '').toString().trim();
+        if (code && codes.indexOf(code) === -1) codes.push(code);
+      }
+    }
+  }
+
+  var rooms = codes.map(function(code) {
+    return { room: code, label: labels[code] || code };
+  });
+  return { rooms: rooms, isAdmin: admin };
+}
+
+// ============================================================
+// MESSAGES
+// ============================================================
+
+function getMessages(params) {
+  var room = (params.room || '').toString().trim();
+  var username = (params.username || '').toString().trim();
+  if (!room) return { error: 'missing_room' };
+  if (!username) return { error: 'missing_username' };
+  if (!isRoomMember(room, username)) return { error: 'not_a_member' };
+
+  var sinceId = parseInt(params.sinceId, 10) || 0;
+  var sheet = getChatSpreadsheet().getSheetByName('ChatMessages');
+  var rows = sheet.getDataRange().getValues();
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if ((r[2] || '').toString().trim() !== room) continue;
+    var id = Number(r[0]) || 0;
+    if (id <= sinceId) continue;
+    out.push({ id: id, timestamp: r[1], room: r[2], username: r[3], message: r[4] });
+  }
+  if (!sinceId && out.length > CHAT_HISTORY_LIMIT) {
+    out = out.slice(out.length - CHAT_HISTORY_LIMIT);
+  }
+  var labels = getRoomLabels();
+  return { messages: out, room: room, label: labels[room] || room };
+}
+
+function postMessage(data) {
+  var room = (data.room || '').toString().trim();
+  var username = (data.username || '').toString().trim();
+  var message = (data.message || '').toString().trim();
+  if (!room) return { error: 'missing_room' };
+  if (!username) return { error: 'missing_username' };
+  if (!message) return { error: 'empty_message' };
+  if (!isRoomMember(room, username)) return { error: 'not_a_member' };
+  if (message.length > CHAT_MAX_MESSAGE_LENGTH) message = message.slice(0, CHAT_MAX_MESSAGE_LENGTH);
+
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'chat_cooldown_' + room + '_' + username;
+  if (cache.get(cacheKey)) return { error: 'rate_limited' };
+  cache.put(cacheKey, '1', CHAT_POST_COOLDOWN_SECONDS);
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  var id, ts;
+  try {
+    var sheet = getChatSpreadsheet().getSheetByName('ChatMessages');
+    id = Date.now();
+    ts = new Date().toISOString();
+    sheet.appendRow([id, ts, room, username, message]);
+  } finally {
+    lock.releaseLock();
+  }
+  return { ok: true, id: id, timestamp: ts, room: room, username: username, message: message };
+}
+
+function deleteMessage(data) {
+  var username = (data.username || '').toString().trim();
+  var id = Number(data.id);
+  if (!isChatAdmin(username)) return { error: 'not_admin' };
+  if (!id) return { error: 'missing_id' };
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = getChatSpreadsheet().getSheetByName('ChatMessages');
+    var rows = sheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      if (Number(rows[i][0]) === id) {
+        sheet.deleteRow(i + 1);
+        return { ok: true };
+      }
+    }
+    return { error: 'not_found' };
+  } finally {
+    lock.releaseLock();
+  }
+}

@@ -1,0 +1,438 @@
+<!-- TEAM CHAT PAGE — paste inside Webpage Maker -->
+<!-- Replace GAS_URL_HERE below with your Team Chat GAS web app /exec URL. -->
+<!-- Optional: link members directly into their room with ?room=CODE in the -->
+<!-- page URL (the room code must match a row in the ChatMembers/ChatRooms -->
+<!-- sheet). Without ?room=, members who belong to more than one room get a -->
+<!-- switcher; members with exactly one room land in it automatically. -->
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&family=Josefin+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+.tc {
+  --bg-1: #10151c;
+  --bg-2: #171e28;
+  --bubble-mine: #2d6a4f;
+  --bubble-mine-text: #d8f3dc;
+  --bubble-other: #232c38;
+  --bubble-other-text: #e7ecf2;
+  --accent: #52b788;
+  --muted: #7c8797;
+  --border: #2a333f;
+  --danger: #d9534f;
+  font-family: 'Nunito', sans-serif;
+  max-width: 640px;
+  margin: 0 auto;
+  color: #e7ecf2;
+}
+
+.tc * { box-sizing: border-box; }
+
+.tc-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+}
+
+.tc-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.tc-title {
+  font-family: 'Josefin Sans', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  margin: 0 0 8px 0;
+}
+
+.tc-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.tc-tab {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tc-tab.active {
+  background: var(--accent);
+  color: #08150d;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.tc-status {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.tc-status.error { color: var(--danger); }
+
+.tc-body { display: none; }
+
+.tc-messages {
+  height: 380px;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tc-messages::-webkit-scrollbar { width: 8px; }
+.tc-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.tc-empty { color: var(--muted); font-size: 13px; text-align: center; margin: auto; }
+
+.tc-row { display: flex; flex-direction: column; max-width: 78%; }
+.tc-row.mine { align-self: flex-end; align-items: flex-end; }
+.tc-row.other { align-self: flex-start; align-items: flex-start; }
+
+.tc-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 3px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tc-bubble {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tc-row.mine .tc-bubble { background: var(--bubble-mine); color: var(--bubble-mine-text); border-bottom-right-radius: 3px; }
+.tc-row.other .tc-bubble { background: var(--bubble-other); color: var(--bubble-other-text); border-bottom-left-radius: 3px; }
+
+.tc-del {
+  cursor: pointer;
+  color: var(--danger);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.tc-inputbar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.tc-input {
+  flex: 1;
+  resize: none;
+  min-height: 38px;
+  max-height: 100px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  color: #e7ecf2;
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  padding: 8px 10px;
+}
+
+.tc-input:focus { outline: none; border-color: var(--accent); }
+
+.tc-send {
+  font-family: 'Josefin Sans', sans-serif;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  padding: 0 18px;
+  background: var(--accent);
+  color: #08150d;
+  cursor: pointer;
+}
+
+.tc-send:disabled { opacity: 0.5; cursor: default; }
+
+.tc-hint { font-size: 11px; color: var(--muted); padding: 0 16px 10px; }
+</style>
+
+<div class="tc">
+  <div class="tc-card">
+    <div class="tc-header">
+      <p class="tc-title">Chat Tim</p>
+      <div class="tc-tabs" id="tc-tabs" style="display:none;"></div>
+    </div>
+    <div class="tc-status" id="tc-status">Memeriksa akun forum...</div>
+    <div class="tc-body" id="tc-body">
+      <div class="tc-messages" id="tc-messages"><div class="tc-empty">Memuat pesan...</div></div>
+      <div class="tc-inputbar">
+        <textarea class="tc-input" id="tc-input" placeholder="Tulis pesan... (Enter untuk kirim, Shift+Enter baris baru)" maxlength="500"></textarea>
+        <button class="tc-send" id="tc-send">Kirim</button>
+      </div>
+      <p class="tc-hint" id="tc-hint">&nbsp;</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var GAS = 'GAS_URL_HERE';
+  var POLL_MS = 3000;
+
+  var loggedInUsername = '';
+  var isAdmin = false;
+  var myRooms = [];
+  var currentRoom = '';
+  var lastId = 0;
+  var pollTimer = null;
+  var sending = false;
+
+  var elStatus   = document.getElementById('tc-status');
+  var elBody     = document.getElementById('tc-body');
+  var elTabs     = document.getElementById('tc-tabs');
+  var elMessages = document.getElementById('tc-messages');
+  var elInput    = document.getElementById('tc-input');
+  var elSend     = document.getElementById('tc-send');
+  var elHint     = document.getElementById('tc-hint');
+
+  function esc(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(s == null ? '' : String(s))); return d.innerHTML; }
+  function getParam(n) { var m = window.location.search.match(new RegExp('[?&]' + n + '=([^&]+)')); return m ? decodeURIComponent(m[1]) : ''; }
+
+  function setStatus(text, isError) {
+    elStatus.textContent = text;
+    elStatus.className = 'tc-status' + (isError ? ' error' : '');
+    elStatus.style.display = text ? 'block' : 'none';
+  }
+
+  function fetchJSON(url, opts, timeoutMs, retries) {
+    retries = retries == null ? 2 : retries;
+    function attempt(number) {
+      var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var fetchOpts = Object.assign({}, opts, controller ? { signal: controller.signal } : {});
+      var timeoutId = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
+      return fetch(url, fetchOpts).then(function(r) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (!r.ok) throw new Error('http_' + r.status);
+        return r.text().then(function(t) { try { return JSON.parse(t); } catch (e) { throw new Error('json_err'); } });
+      }).catch(function(err) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (number >= retries) throw err;
+        var delay = 600 * Math.pow(2, number);
+        return new Promise(function(resolve) { setTimeout(resolve, delay); }).then(function() { return attempt(number + 1); });
+      });
+    }
+    return attempt(0);
+  }
+
+  function getGAS(params) {
+    var qs = Object.keys(params).map(function(k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
+    return fetchJSON(GAS + '?' + qs, {}, 8000);
+  }
+
+  function postGAS(payload) {
+    return fetchJSON(GAS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    }, 8000, 0);
+  }
+
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderMessage(m) {
+    var mine = m.username === loggedInUsername;
+    var row = document.createElement('div');
+    row.className = 'tc-row ' + (mine ? 'mine' : 'other');
+    row.dataset.id = m.id;
+
+    var meta = document.createElement('div');
+    meta.className = 'tc-meta';
+    meta.innerHTML = '<span>' + esc(m.username) + '</span><span>' + esc(fmtTime(m.timestamp)) + '</span>';
+    if (isAdmin) {
+      var del = document.createElement('button');
+      del.className = 'tc-del';
+      del.textContent = 'hapus';
+      del.onclick = function() { deleteMessage(m.id, row); };
+      meta.appendChild(del);
+    }
+
+    var bubble = document.createElement('div');
+    bubble.className = 'tc-bubble';
+    bubble.textContent = m.message;
+
+    row.appendChild(meta);
+    row.appendChild(bubble);
+    return row;
+  }
+
+  function isScrolledToBottom() {
+    return elMessages.scrollHeight - elMessages.scrollTop - elMessages.clientHeight < 40;
+  }
+
+  function appendMessages(list) {
+    if (!list.length) return;
+    var wasAtBottom = isScrolledToBottom();
+    var empty = elMessages.querySelector('.tc-empty');
+    if (empty) empty.remove();
+    list.forEach(function(m) {
+      if (m.id <= lastId && elMessages.querySelector('[data-id="' + m.id + '"]')) return;
+      elMessages.appendChild(renderMessage(m));
+      if (m.id > lastId) lastId = m.id;
+    });
+    if (wasAtBottom) elMessages.scrollTop = elMessages.scrollHeight;
+  }
+
+  function deleteMessage(id, row) {
+    postGAS({ action: 'deleteMessage', room: currentRoom, username: loggedInUsername, id: id }).then(function(d) {
+      if (d && d.ok) row.remove();
+      else setHint((d && d.error) || 'Gagal menghapus pesan.', true);
+    }).catch(function() { setHint('Gagal menghapus pesan (jaringan).', true); });
+  }
+
+  function setHint(text, isError) {
+    elHint.textContent = text || ' ';
+    elHint.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+  }
+
+  function loadRoom(room) {
+    currentRoom = room;
+    lastId = 0;
+    elMessages.innerHTML = '<div class="tc-empty">Memuat pesan...</div>';
+    if (pollTimer) clearInterval(pollTimer);
+    poll();
+    pollTimer = setInterval(poll, POLL_MS);
+  }
+
+  function poll() {
+    if (!currentRoom) return;
+    getGAS({ action: 'getMessages', room: currentRoom, username: loggedInUsername, sinceId: lastId }).then(function(d) {
+      if (d && d.error) {
+        setHint('Error: ' + d.error, true);
+        return;
+      }
+      if (d && d.messages) {
+        if (lastId === 0 && d.messages.length === 0) {
+          elMessages.innerHTML = '<div class="tc-empty">Belum ada pesan. Mulai obrolan!</div>';
+        }
+        appendMessages(d.messages);
+      }
+    }).catch(function() { /* transient network error, retried on next poll */ });
+  }
+
+  function renderTabs() {
+    if (myRooms.length <= 1) { elTabs.style.display = 'none'; return; }
+    elTabs.style.display = 'flex';
+    elTabs.innerHTML = '';
+    myRooms.forEach(function(r) {
+      var btn = document.createElement('button');
+      btn.className = 'tc-tab' + (r.room === currentRoom ? ' active' : '');
+      btn.textContent = r.label;
+      btn.onclick = function() {
+        currentRoom = r.room;
+        renderTabs();
+        loadRoom(r.room);
+      };
+      elTabs.appendChild(btn);
+    });
+  }
+
+  function send() {
+    var text = elInput.value.trim();
+    if (!text || sending || !currentRoom) return;
+    sending = true;
+    elSend.disabled = true;
+    postGAS({ action: 'postMessage', room: currentRoom, username: loggedInUsername, message: text }).then(function(d) {
+      sending = false;
+      elSend.disabled = false;
+      if (d && d.ok) {
+        elInput.value = '';
+        elInput.style.height = 'auto';
+        appendMessages([d]);
+        elMessages.scrollTop = elMessages.scrollHeight;
+        setHint('');
+      } else if (d && d.error === 'rate_limited') {
+        setHint('Tunggu sebentar sebelum mengirim lagi.', true);
+      } else {
+        setHint('Gagal mengirim: ' + ((d && d.error) || 'unknown'), true);
+      }
+    }).catch(function() {
+      sending = false;
+      elSend.disabled = false;
+      setHint('Gagal mengirim (jaringan). Coba lagi.', true);
+    });
+  }
+
+  elSend.addEventListener('click', send);
+  elInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  elInput.addEventListener('input', function() {
+    elInput.style.height = 'auto';
+    elInput.style.height = Math.min(elInput.scrollHeight, 100) + 'px';
+  });
+
+  function init() {
+    getGAS({ action: 'getMyRooms', username: loggedInUsername }).then(function(d) {
+      if (d && d.error) { setStatus('Gagal memuat room chat: ' + d.error, true); return; }
+      myRooms = d.rooms || [];
+      isAdmin = !!d.isAdmin;
+
+      var wanted = getParam('room');
+      var target = '';
+      if (wanted && myRooms.some(function(r) { return r.room === wanted; })) {
+        target = wanted;
+      } else if (myRooms.length === 1) {
+        target = myRooms[0].room;
+      } else if (wanted) {
+        setStatus('Anda bukan anggota room "' + wanted + '".', true);
+        return;
+      }
+
+      if (!target && myRooms.length === 0) {
+        setStatus('Anda belum terdaftar di room chat manapun. Hubungi admin untuk didaftarkan.', true);
+        return;
+      }
+
+      setStatus('');
+      elBody.style.display = 'block';
+      currentRoom = target || myRooms[0].room;
+      renderTabs();
+      loadRoom(currentRoom);
+    }).catch(function() {
+      setStatus('Gagal terhubung ke server chat. Muat ulang halaman.', true);
+    });
+  }
+
+  var x = new XMLHttpRequest();
+  x.open('GET', 'https://hakgyo.jcink.net/index.php?act=UserCP', true);
+  x.withCredentials = true;
+  x.onload = function() {
+    var html = x.responseText;
+    var ok = html.indexOf('You are not logged in') === -1 && html.indexOf('Welcome,') !== -1;
+    if (!ok) { setStatus('Anda harus login ke forum untuk menggunakan chat ini.', true); return; }
+    var m = html.match(/Welcome,\s*<a[^>]*class=['"]topname['"][^>]*>([^<]+)<\/a>/);
+    if (!m) { setStatus('Gagal mendeteksi akun. Coba muat ulang halaman.', true); return; }
+    loggedInUsername = m[1].trim();
+    init();
+  };
+  x.onerror = function() { setStatus('Gagal memeriksa akun forum. Coba muat ulang halaman.', true); };
+  x.send();
+})();
+</script>
