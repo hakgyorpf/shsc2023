@@ -231,7 +231,7 @@
 //                            allowed) — the restart pass hasn't happened yet,
 //                            so nobody can dribble past anyone. Cleared the
 //                            instant that one contest resolves (resolveContest).
-// [44] PendingStyle       the first mover's Pace/Power/Skill pick, stashed
+// [44] PendingStyle       the first mover's Speed/Power/Skill pick, stashed
 //                            here until the second mover rolls (same idea as
 //                            PendingAction) — cleared by clearPending().
 // [45] PendingShootStyle  same idea as [44] but for the shoot/save duel —
@@ -295,17 +295,17 @@ var GOALKICK_OPP_DICE_MAX = 100;
 // one of three play styles, independent of their action and of each
 // other; the style match-up (not the raw roll) decides who wins the
 // exchange:
-//   Pace  beats Power   (a quick player skips past brute strength)
+//   Speed beats Power   (a quick player skips past brute strength)
 //   Power beats Skill   (physicality muscles through a technical player)
-//   Skill beats Pace    (close control/technique undoes raw speed)
+//   Skill beats Speed   (close control/technique undoes raw speed)
 // If both sides pick the SAME style, it's a wash — whoever rolled
 // higher wins instead (exactly like before this feature existed).
 // Margin (the roll gap) is UNCHANGED by any of this — it still drives
 // progressForMargin()/tackleFailOutcome()/tackleSucceedOutcome() exactly
 // as before; style only decides WHO those buckets apply to.
 // ============================================================
-var STYLE_TYPES = ['pace', 'power', 'skill'];
-var STYLE_BEATS = { pace: 'power', power: 'skill', skill: 'pace' };
+var STYLE_TYPES = ['speed', 'power', 'skill'];
+var STYLE_BEATS = { speed: 'power', power: 'skill', skill: 'speed' };
 
 function rpsStyleResult(styleA, styleB) {
   if (!styleA || !styleB || styleA === styleB) return 'tie';
@@ -995,17 +995,18 @@ function isSideAllNPC(matchCode, side) {
 // COOLDOWN + DAILY CAP — PvNPC AND NPCvNPC only (identical rule for
 // both).
 //   - 30-min cooldown between CONTEST rolls (dribble/pass/tackle/
-//     interception) for the same CHARACTER on the same match — keyed
-//     off the character named in "Nama Karakter" (RollLog/ShootLog's
-//     SubmittedBy column now holds that character's name, NOT the
-//     submitting account — see below). So one writer who's eligible to
-//     roll for several characters (an account-holder plus their
-//     proxied characters) can roll for each of them back-to-back; it's
-//     only rolling for the SAME character again that has to wait out
-//     the 30 minutes. Does NOT apply to Shoot/Save — you shouldn't
-//     have to wait out an unrelated cooldown just to take a shot
-//     chance your team already earned. Checked in submitRoll only
-//     (checkPvNPCCooldown).
+//     interception) AND Shoot for the same CHARACTER on the same
+//     match — keyed off the character named in "Nama Karakter"
+//     (RollLog/ShootLog's SubmittedBy column now holds that
+//     character's name, NOT the submitting account — see below). So
+//     one writer who's eligible to roll for several characters (an
+//     account-holder plus their proxied characters) can roll for each
+//     of them back-to-back; it's only rolling for the SAME character
+//     again that has to wait out the 30 minutes. Save (and a GK's own
+//     Goal Kick) is exempt — a forced response/restart, not a choice.
+//     Checked against BOTH RollLog and ShootLog, whichever holds that
+//     character's more recent action (checkPvNPCCooldown), and in
+//     both submitRoll and submitShoot.
 //   - 5 rolls per CHARACTER per match per CALENDAR DAY (resets at
 //     00:00 WIB/Asia-Jakarta, matching the timestamps already shown
 //     elsewhere in this system), counting BOTH contest rolls and
@@ -1367,7 +1368,7 @@ function kickoff(data) {
     var teamSide = access.side;
     // Kick off IS the restart pass now (not a separate step before one) —
     // validate the style up front so we never half-kickoff on bad input.
-    if (!validateStyle(data.styleType)) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
+    if (!validateStyle(data.styleType)) return { error: 'Pilih gaya main: Speed, Power, atau Skill.' };
 
     found.sheet.getRange(found.row, 7, 1, 4).setValues([['active', m[7] || 'PvP', 'H1', 0]]); // Status, MatchType, Phase, HalfMinute
     found.sheet.getRange(found.row, 11).setValue(teamSide); // TeamInAttack
@@ -1414,7 +1415,7 @@ function submitRoll(data) {
     var matchType = m[7] || 'PvP';
 
     var myStyle = validateStyle(data.styleType);
-    if (!myStyle) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
+    if (!myStyle) return { error: 'Pilih gaya main: Speed, Power, atau Skill.' };
 
     // NPCvNPC: gate to admin only, BEFORE resolving the named character
     // (which would never pass for a non-admin anyway, since every
@@ -1638,7 +1639,7 @@ function resolveContest(found, attackSide, defendSide, attackData, defendData, s
   var m = found.data;
   var margin = Math.abs(attackData.roll - defendData.roll);
   if (margin === 0) margin = 1;
-  // Style (Pace/Power/Skill) decides who wins the exchange — the raw
+  // Style (Speed/Power/Skill) decides who wins the exchange — the raw
   // roll only breaks a tie (both sides picked the same style). Margin
   // itself is untouched by any of this: it's still the SAME roll gap
   // as before, still driving progressForMargin()/tackleFailOutcome()/
@@ -1815,7 +1816,7 @@ function submitShoot(data) {
     if (!data.loggedInUsername) return { error: 'Gagal mendeteksi akun. Coba refresh halaman.' };
 
     var myStyle = validateStyle(data.styleType);
-    if (!myStyle) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
+    if (!myStyle) return { error: 'Pilih gaya main: Speed, Power, atau Skill.' };
 
     // NPCvNPC: admin-only, same reasoning as submitRoll — see RULES BY
     // MATCH TYPE at the top of this file. Save is exempt from BOTH the
@@ -2133,7 +2134,7 @@ function startSecondHalf(data) {
     var matchType = (m[7] || 'PvP').toString().trim();
     var access = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, matchType);
     if (!access.allowed) return { error: access.error };
-    if (!validateStyle(data.styleType)) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
+    if (!validateStyle(data.styleType)) return { error: 'Pilih gaya main: Speed, Power, atau Skill.' };
     if (String(access.position || '').toUpperCase() === 'GK') {
       return { error: 'Kiper tidak bisa mengambil kick off. Pilih pemain lain.' };
     }
