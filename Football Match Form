@@ -208,7 +208,7 @@
   font-size: 0.58rem;
   font-weight: bold;
 }
-.fbf-guide-chip.pace {
+.fbf-guide-chip.speed {
   background: rgba(82, 183, 136, 0.18);
   color: var(--accent-2);
 }
@@ -282,7 +282,7 @@
   </div>
 
   <div class="fbf-guide-block">
-    <div class="fbf-guide-label">3. Aksi</div>
+    <div class="fbf-guide-label">Aksi</div>
     <div class="fbf-guide-text">
       Pilih aksi sesuai peran timmu saat ini.
       <ul class="fbf-guide-list">
@@ -294,21 +294,21 @@
   </div>
 
   <div class="fbf-guide-block">
-    <div class="fbf-guide-label">4. Gaya Bermain</div>
+    <div class="fbf-guide-label">Strategi</div>
     <div class="fbf-guide-text">
-      Pilih Pace, Power, atau Skill sebelum roll.
+      Pilih Speed, Power, atau Skill sebelum roll.
       <div class="fbf-guide-strategies">
         <div class="fbf-guide-strategy">
-          <span class="fbf-guide-chip pace">⚡ Pace</span>
+          <span class="fbf-guide-chip speed">⚡ Speed</span>
           <span>Menang melawan Power, tetapi kalah dari Skill.</span>
         </div>
         <div class="fbf-guide-strategy">
           <span class="fbf-guide-chip power">💥 Power</span>
-          <span>Menang melawan Skill, tetapi kalah dari Pace.</span>
+          <span>Menang melawan Skill, tetapi kalah dari Speed.</span>
         </div>
         <div class="fbf-guide-strategy">
           <span class="fbf-guide-chip skill">🎯 Skill</span>
-          <span>Menang melawan Pace, tetapi kalah dari Power.</span>
+          <span>Menang melawan Speed, tetapi kalah dari Power.</span>
         </div>
       </div>
     </div>
@@ -317,9 +317,9 @@
   <hr class="fbf-guide-sep">
 
   <div class="fbf-guide-block">
-    <div class="fbf-guide-label">5. Sistem Roll</div>
+    <div class="fbf-guide-label">Sistem Roll</div>
     <div class="fbf-guide-text">
-      Gaya bermain menentukan pemenang. Jika kedua pemain memilih gaya yang sama, angka roll tertinggi menang.
+      Strategi menentukan pemenang. Jika kedua pemain memilih strategi yang sama, angka roll tertinggi menang.
       <ul class="fbf-guide-list">
         <li>Bonus +10 diberikan untuk Defender saat Tackle, Midfielder saat Interception, dan Forward saat Shoot.</li>
         <li>Tiap pemain di PvNPC dan NPCvNPC bisa melakukan maksimal 1 roll/30 menit dan 5 roll/hari kecuali Kiper. Tidak ada batas harian untuk PvP.</li>
@@ -331,28 +331,28 @@
   </div>
 
   <div class="fbf-guide-block">
-    <div class="fbf-guide-label">6. Kick Off</div>
+    <div class="fbf-guide-label">Kick Off</div>
     <div class="fbf-guide-text">
       Pada kick off babak pertama, babak kedua, dan extra time, tim yang melakukan kick off menjadi tim menyerang. Roll pertama otomatis menggunakan Pass vs Interception. Dribble belum bisa digunakan.
     </div>
   </div>
 
   <div class="fbf-guide-block">
-    <div class="fbf-guide-label">7. Progress dan Shoot</div>
+    <div class="fbf-guide-label">Progress dan Shoot</div>
     <div class="fbf-guide-text">
       Saat progress tim menyerang mencapai 50, tim mendapat kesempatan Shoot. Open play Shoot mengurai 50 poin progress. Tendangan bebas, penalti, dan corner tidak mengurangi progress. Progress tim tetap tersimpan meskipun bola berpindah.
     </div>
   </div>
 
   <div class="fbf-guide-block">
-    <div class="fbf-guide-label">8. Save dan Goal Kick</div>
+    <div class="fbf-guide-label">Save dan Goal Kick</div>
     <div class="fbf-guide-text">
       Hanya kiper yang boleh melakukan Save atau Goal Kick. Kiper hanya bisa melakukan dua aksi ini. Tidak ada batas roll maksimal (per 30 menit maupun harian) untuk Kiper.
     </div>
   </div>
 
   <div class="fbf-guide-block">
-    <div class="fbf-guide-label">9. Narasi RP</div>
+    <div class="fbf-guide-label">Narasi RP</div>
     <div class="fbf-guide-text">
       Opsional. Tambahkan narasi singkat tentang aksi karaktermu. Kosongkan jika tidak ingin menulis narasi.
     </div>
@@ -406,7 +406,7 @@
       <div id="fbf-rolling-label" style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; letter-spacing:1px; color:#eef7f0; margin-top:1rem; font-weight:bold; line-height:1.6;">Rolling...</div>
     </div>
     <div id="fbf-reveal-stage" style="display:none; margin-top:1rem;">
-      <div id="fbf-style-scheme" style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; letter-spacing:0.5px; color:#d8f3dc; text-align:center; margin:0 0 0.75rem; font-weight:bold;">Pace > Power > Skill > Pace</div>
+      <div id="fbf-style-scheme" style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; letter-spacing:0.5px; color:#d8f3dc; text-align:center; margin:0 0 0.75rem; font-weight:bold;">Speed > Power > Skill > Speed</div>
       <div id="fbf-row-mine" style="background:#eaf4ec; border-radius:16px; padding:1rem 1.2rem; margin-bottom:0.75rem; opacity:0.4; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.18); text-align:left;">
         <div id="fbf-row-mine-name" style="font-family:'IBM Plex Mono',monospace; font-size:0.78rem; color:#0f2818; font-weight:bold;">—</div>
         <div id="fbf-mine-action" style="font-family:'IBM Plex Mono',monospace; font-size:0.66rem; color:#2d6a4f; margin-top:0.25rem; font-style:italic;">—</div>
@@ -468,8 +468,8 @@
     dribble: 'Dribble!', pass: 'Pass!', tackle: 'Tackle!', interception: 'Intercept!',
     shoot: 'Shoot!', save: 'Save!', goalkick: 'Goal Kick!'
   };
-  var STYLE_LABELS = { pace: '🏃 Pace', power: '💥 Power', skill: '🎯 Skill' };
-  var STYLE_TYPES = ['pace', 'power', 'skill'];
+  var STYLE_LABELS = { speed: '⚡ Speed', power: '💥 Power', skill: '🎯 Skill' };
+  var STYLE_TYPES = ['speed', 'power', 'skill'];
   var SHOOT_TYPE_LABEL = {
     open_play: 'Shoot!', penalty: 'Penalty Kick!', corner: 'Corner Kick!', freekick: 'Free Kick!'
   };
@@ -974,7 +974,7 @@ goals.sort(function(a, b) {
     area.appendChild(wrap);
     var hint = document.createElement('div');
     hint.className = 'fbf-style-hint';
-    hint.textContent = 'Pace > Power > Skill > Pace — gaya bermain ini menentukan siapa yang memenangkan duel.';
+    hint.textContent = 'Speed > Power > Skill > Speed — strategi ini menentukan siapa yang memenangkan duel.';
     area.appendChild(hint);
   }
 
@@ -1259,7 +1259,7 @@ goals.sort(function(a, b) {
     var err = document.getElementById('fbf-err'); err.style.display = 'none';
     if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
     if (!curCharacterName || !curSide) { showErr('Pilih nama karakter dari tim yang berhak melakukan restart.'); return; }
-    if (!selectedStyle) { showErr('Pilih gaya bermain terlebih dahulu: Pace, Power, atau Skill.'); return; }
+    if (!selectedStyle) { showErr('Pilih strategi terlebih dahulu: Speed, Power, atau Skill.'); return; }
     var ic = document.getElementById('fbf-ic').value.trim();
     beginRolling(ACTION_VERBING.kickoff);
     postGAS({ action: 'startSecondHalf', matchCode: curMatch, characterName: curCharacterName, styleType: selectedStyle, icLine: ic, loggedInUsername: loggedInUsername }, function(d) {
@@ -1272,7 +1272,7 @@ goals.sort(function(a, b) {
     var err = document.getElementById('fbf-err'); err.style.display = 'none';
     if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
     if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
-    if (!selectedStyle) { showErr('Pilih gaya bermain terlebih dahulu: Pace, Power, atau Skill.'); return; }
+    if (!selectedStyle) { showErr('Pilih strategi terlebih dahulu: Speed, Power, atau Skill.'); return; }
     var ic = document.getElementById('fbf-ic').value.trim();
     beginRolling(ACTION_VERBING.kickoff);
     // Kick off IS the restart pass now (server resolves it through the
@@ -1289,7 +1289,7 @@ goals.sort(function(a, b) {
     if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
     if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
     if (!selectedAction) { showErr('Pilih aksi dulu.'); return; }
-    if (!selectedStyle) { showErr('Pilih gaya bermain terlebih dahulu: Pace, Power, atau Skill.'); return; }
+    if (!selectedStyle) { showErr('Pilih strategi terlebih dahulu: Speed, Power, atau Skill.'); return; }
     var ic = document.getElementById('fbf-ic').value.trim();
     beginRolling(ACTION_VERBING[selectedAction] || 'Rolling...');
     postGAS({ action: 'submitRoll', matchCode: curMatch, characterName: curCharacterName, chosenAction: selectedAction, styleType: selectedStyle, icLine: ic, loggedInUsername: loggedInUsername }, function(d) {
@@ -1302,7 +1302,7 @@ goals.sort(function(a, b) {
     var err = document.getElementById('fbf-err'); err.style.display = 'none';
     if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
     if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
-    if (!selectedStyle) { showErr('Pilih gaya bermain terlebih dahulu: Pace, Power, atau Skill.'); return; }
+    if (!selectedStyle) { showErr('Pilih strategi terlebih dahulu: Speed, Power, atau Skill.'); return; }
     var ic = document.getElementById('fbf-ic').value.trim();
     var actingAsShooter = scoreData && curSide === scoreData.shootReady;
     beginRolling(actingAsShooter ? ACTION_VERBING.shoot : ACTION_VERBING.save);
