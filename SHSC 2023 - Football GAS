@@ -98,10 +98,15 @@
 //       team out; the position lock still applies regardless.
 //
 //   PvNPC (human team vs NPC team)
-//     - 30-MINUTE COOLDOWN per submitting writer, between contest rolls
-//       only (checkPvNPCCooldown) — a shot chance you've already
-//       earned is never blocked by this, and neither is a registered
-//       GK's own Goal Kick (same exemption as their daily cap below).
+//     - 30-MINUTE COOLDOWN per submitting character, between contest
+//       rolls AND shots alike (checkPvNPCCooldown, keyed off whichever
+//       log — RollLog or ShootLog — the character's last action landed
+//       in) — a Shoot is just as much a free choice of which character
+//       acts as a contest roll is, so it's throttled the same way; any
+//       OTHER eligible teammate can still be named instead if this one
+//       is on cooldown. Save is exempt (it's a forced response, not a
+//       choice), and so is a registered GK's own Goal Kick (same
+//       exemption as their daily cap below).
 //     - 5 ROLLS PER CHARACTER PER CALENDAR DAY (resets 00:00 WIB), counting
 //       contest rolls AND shots together (checkPvNPCDailyCap) — keyed off
 //       the named character (data.characterName), not the writer's
@@ -1026,18 +1031,26 @@ function isSideAllNPC(matchCode, side) {
 
 function checkPvNPCCooldown(matchCode, characterName) {
   // Registered GKs are exempt, same reasoning as the daily cap: a GK's
-  // only RollLog-logged action is Goal Kick (Save goes through ShootLog
-  // via submitShoot, which never calls this at all), and it's a forced
-  // restart, not a roll they chose to spend — the cooldown shouldn't be
-  // able to leave a keeper unable to take their OWN next goal kick.
+  // only logged actions are Goal Kick (RollLog) and Save (ShootLog), and
+  // both are a forced restart/response, not a roll they chose to spend —
+  // the cooldown shouldn't be able to leave a keeper unable to act.
   var rosterChar = findRosterCharacter(matchCode, characterName);
   if (rosterChar && rosterChar.position === 'GK') return { blocked: false };
 
-  var rows = getFootballMatchLogRows('RollLog', matchCode);
-  var lastTs = null;
-  for (var i = rows.length - 1; i >= 1; i--) {
-    if (rows[i][1] === matchCode && rows[i][2] === characterName) { lastTs = rows[i][0]; break; }
+  // Checked against BOTH logs now that Shoot counts against this cooldown
+  // too (not just contest rolls) — a character's last action, whichever
+  // log it landed in, is what starts the 30-minute clock. Whichever
+  // timestamp is more recent wins.
+  function lastTimestamp(kind) {
+    var rows = getFootballMatchLogRows(kind, matchCode);
+    for (var i = rows.length - 1; i >= 1; i--) {
+      if (rows[i][1] === matchCode && rows[i][2] === characterName) return rows[i][0];
+    }
+    return null;
   }
+  var lastRoll = lastTimestamp('RollLog');
+  var lastShoot = lastTimestamp('ShootLog');
+  var lastTs = (lastRoll && lastShoot) ? (lastRoll > lastShoot ? lastRoll : lastShoot) : (lastRoll || lastShoot);
   if (!lastTs) return { blocked: false };
   var elapsedMs = Date.now() - lastTs.getTime();
   var remainMin = Math.ceil((30 * 60 * 1000 - elapsedMs) / 60000);
@@ -1805,10 +1818,13 @@ function submitShoot(data) {
     if (!myStyle) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
 
     // NPCvNPC: admin-only, same reasoning as submitRoll — see RULES BY
-    // MATCH TYPE at the top of this file. No 30-min cooldown check here
-    // (shoot/save has no free action choice to rate-limit, and a shot
-    // your team just earned shouldn't be stalled by an unrelated
-    // cooldown) — but the 5-per-24h daily cap DOES count shots too.
+    // MATCH TYPE at the top of this file. Save is exempt from BOTH the
+    // 30-min cooldown and the 5-per-24h daily cap — it's a forced
+    // response, not a roll the keeper chose to spend. Shoot counts
+    // against both, same as an ordinary contest roll: taking a shot is
+    // just as much a free choice by the shooter's own character as a
+    // Dribble/Pass/Tackle/Interception is (any eligible teammate can be
+    // named instead if this particular character is on cooldown).
     if (matchType === 'NPCvNPC') {
       if (!isFootballAdmin(data.loggedInUsername)) {
         return { error: 'Match NPC vs NPC hanya bisa di-roll oleh admin.' };
@@ -1816,10 +1832,9 @@ function submitShoot(data) {
       var accessNvN = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, matchType);
       if (!accessNvN.allowed) return { error: accessNvN.error };
       var roleNvN = accessNvN.side === shootSide ? 'shoot' : 'save';
-      // GK never chose to be shot at, so the daily roll cap doesn't apply
-      // to Save — only the shooter's own free choice to take a shot counts
-      // against their cap.
       if (roleNvN !== 'save') {
+        var cooldownNvN = checkPvNPCCooldown(data.matchCode, data.characterName);
+        if (cooldownNvN.blocked) return cooldownNvN;
         var dailyCapNvN = checkPvNPCDailyCap(data.matchCode, data.characterName);
         if (dailyCapNvN.blocked) return dailyCapNvN;
       }
@@ -1836,9 +1851,11 @@ function submitShoot(data) {
       if (teamSide !== humanSide) return { error: 'Sisi ini dikendalikan NPC di match PvNPC.' };
       var humanRole = humanSide === shootSide ? 'shoot' : 'save';
       // Same GK exemption as above — a save is a forced response, not a
-      // roll the keeper chose to spend, so it never counts against their
-      // 5-per-day cap.
+      // roll the keeper chose to spend, so it never counts against the
+      // 30-min cooldown or the 5-per-day cap.
       if (humanRole !== 'save') {
+        var cooldown = checkPvNPCCooldown(data.matchCode, data.characterName);
+        if (cooldown.blocked) return cooldown;
         var dailyCap = checkPvNPCDailyCap(data.matchCode, data.characterName);
         if (dailyCap.blocked) return dailyCap;
       }
