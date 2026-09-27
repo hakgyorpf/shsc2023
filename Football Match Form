@@ -1559,7 +1559,8 @@ goals.sort(function(a, b) {
     }, 700);
   }
 
-  function postGAS(payload, cb) {
+  function postGAS(payload, cb, retriesLeft) {
+    if (retriesLeft == null) retriesLeft = 1;
     var xr = new XMLHttpRequest();
     xr.open('POST', GAS, true);
     xr.timeout = 25000;
@@ -1575,6 +1576,22 @@ goals.sort(function(a, b) {
         console.error('postGAS: non-JSON response (status ' + xr.status + '):', xr.responseText);
         hideRolling();
         showErr('Server mengembalikan respons yang tidak valid. Coba lagi.');
+        return;
+      }
+      // 'Unknown action: undefined' can ONLY happen server-side when
+      // data.action/params.action is literally undefined — no button in
+      // this file ever omits action, so this exact string is the
+      // signature of a known Apps Script /exec quirk: right after a
+      // (re)deploy, the FIRST request can get a redirect the browser
+      // follows by downgrading our POST to a bodyless GET (dropping
+      // action along with everything else), landing in the doGet()
+      // fallback instead of actually running the roll. One transparent
+      // retry clears it — by the second request the redirect target is
+      // already resolved — so the player never sees a scary error for
+      // what's really just a one-off infra hiccup.
+      if (parsed && parsed.error === 'Unknown action: undefined' && retriesLeft > 0) {
+        console.warn('postGAS: got "Unknown action: undefined" (likely a post-deploy redirect drop) — retrying once.');
+        postGAS(payload, cb, retriesLeft - 1);
         return;
       }
       // cb() runs outside the try/catch above so a bug in the reveal
