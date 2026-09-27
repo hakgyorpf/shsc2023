@@ -501,6 +501,7 @@ function getScore(matchCode, rosterRows) {
     pendingRole: m[18] || '', pendingSide: m[19] || '', pendingAction: m[20] || '',
     shootReady: m[27] || '', shootIsFreeShot: !!m[28], shootType: m[42] || '',
     pendingShootRole: m[29] || '', pendingShootSide: m[30] || '',
+    pendingShootCharacter: m[29] === 'shoot' ? (m[32] || '') : '',
     round: m[37] || '', nextRound: m[38] || '', gender: m[39] || '',
     drawAllowed: !!m[40], humanSide: humanSide, kickoffPending: !!m[43],
     goalKickPending: !!m[46]
@@ -663,7 +664,7 @@ function getShootLog(matchCode, limit) {
       submittedBy: rows[i][2], phase: rows[i][3], minute: rows[i][4],
       shootSide: rows[i][5], shootType: rows[i][6] || 'open_play',
       rollShoot: rows[i][7], characterShoot: rows[i][8], positionShoot: rows[i][9], bonusShoot: !!rows[i][10],
-      rollSave: rows[i][11], characterSave: rows[i][12],
+      rollSave: rows[i][11], characterSave: rows[i][12], positionSave: 'GK',
       margin: rows[i][13], outcome: rows[i][14], flavorText: rows[i][15] || '',
       scoreAAfter: rows[i][16], scoreBAfter: rows[i][17],
       icLine: rows[i][18] || '', autoResolved: !!rows[i][19], shootId: rows[i][20] || '',
@@ -1162,7 +1163,9 @@ function fillShootTemplate(template, ctx) {
     .split('{opponent}').join(opponentPick)
     .split('{teammate}').join(teammatePick)
     .split('{tim_penyerang}').join(ctx.shootTeamName)
-    .split('{tim_bertahan}').join(ctx.gkTeamName);
+    .split('{tim_bertahan}').join(ctx.gkTeamName)
+    .replace(/\s*[—–]\s*/g, '. ')
+    .replace(/(^|[.!?]\s+)([a-záéíóúñ])/g, function(_, sep, letter) { return sep + letter.toUpperCase(); });
 }
 
 // Random (uniform, non-weighted — this is flavor text only, not credit/
@@ -1316,10 +1319,11 @@ function effectiveDiceMax(redCards, injured) {
 
 function rollForCharacter(redCards, character, action) {
   var max = effectiveDiceMax(redCards, character.injured);
-  var roll = Math.floor(Math.random() * max) + 1;
+  var rawRoll = Math.floor(Math.random() * max) + 1;
+  var roll = rawRoll;
   var bonus = positionGetsBonus(character.position, action);
   if (bonus) roll = Math.min(100, roll + 10);
-  return { roll: roll, bonus: bonus, max: max };
+  return { rawRoll: rawRoll, roll: roll, bonus: bonus, max: max };
 }
 
 // ============================================================
@@ -1477,6 +1481,7 @@ function submitRoll(data) {
       found.sheet.getRange(found.row, 19, 1, 8).setValues([[
         role, teamSide, chosenAction, rolled1.roll, char1.name, char1.position, rolled1.bonus, data.loggedInUsername
       ]]);
+      found.sheet.getRange(found.row, 49).setValue(rolled1.rawRoll); // PendingRawRoll
       found.sheet.getRange(found.row, 27).setValue(new Date().toISOString()); // WaitingSince
       found.sheet.getRange(found.row, 42).setValue(new Date().toISOString()); // LastActivity
       found.sheet.getRange(found.row, 45).setValue(myStyle); // PendingStyle
@@ -1484,7 +1489,7 @@ function submitRoll(data) {
       return {
         success: true, status: 'pending', matchType: 'PvP',
         role: role, mySide: teamSide, myAction: chosenAction, myStyle: myStyle,
-        myRoll: rolled1.roll, myCharacter: char1.name, myPosition: char1.position, myBonus: rolled1.bonus,
+        myRoll: rolled1.roll, myRawRoll: rolled1.rawRoll, myCharacter: char1.name, myPosition: char1.position, myBonus: rolled1.bonus,
         waitingFor: defendSideOrAttack(role, attackSide, defendSide)
       };
     }
@@ -1508,11 +1513,11 @@ function submitRoll(data) {
     var pendingSide = m[19];
     var attackData, defendData;
     if (pendingSide === attackSide) {
-      attackData = { side: attackSide, action: pendingAction, style: pendingStyle, roll: m[21], character: m[22], position: m[23], bonus: !!m[24] };
-      defendData = { side: defendSide, action: myAction2, style: myStyle, roll: rolled2.roll, character: char2.name, position: char2.position, bonus: rolled2.bonus };
+      attackData = { side: attackSide, action: pendingAction, style: pendingStyle, roll: m[21], rawRoll: Number(m[48]) || Math.max(1, Number(m[21]) - (m[24] ? 10 : 0)), character: m[22], position: m[23], bonus: !!m[24] };
+      defendData = { side: defendSide, action: myAction2, style: myStyle, roll: rolled2.roll, rawRoll: rolled2.rawRoll, character: char2.name, position: char2.position, bonus: rolled2.bonus };
     } else {
-      attackData = { side: attackSide, action: myAction2, style: myStyle, roll: rolled2.roll, character: char2.name, position: char2.position, bonus: rolled2.bonus };
-      defendData = { side: defendSide, action: pendingAction, style: pendingStyle, roll: m[21], character: m[22], position: m[23], bonus: !!m[24] };
+      attackData = { side: attackSide, action: myAction2, style: myStyle, roll: rolled2.roll, rawRoll: rolled2.rawRoll, character: char2.name, position: char2.position, bonus: rolled2.bonus };
+      defendData = { side: defendSide, action: pendingAction, style: pendingStyle, roll: m[21], rawRoll: Number(m[48]) || Math.max(1, Number(m[21]) - (m[24] ? 10 : 0)), character: m[22], position: m[23], bonus: !!m[24] };
     }
 
     var icLine = (data.icLine || '').toString().slice(0, 500);
@@ -1595,11 +1600,11 @@ function resolvePvNPCContest(found, data, attackSide, defendSide, humanSide, myS
 
   var attackData, defendData;
   if (humanRole === 'attack') {
-    attackData = { side: humanSide, action: chosenAction, style: myStyle, roll: humanRolled.roll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus };
-    defendData = { side: npcSide, action: npcAction, style: npcStyle, roll: npcRolled.roll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus };
+    attackData = { side: humanSide, action: chosenAction, style: myStyle, roll: humanRolled.roll, rawRoll: humanRolled.rawRoll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus };
+    defendData = { side: npcSide, action: npcAction, style: npcStyle, roll: npcRolled.roll, rawRoll: npcRolled.rawRoll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus };
   } else {
-    attackData = { side: npcSide, action: npcAction, style: npcStyle, roll: npcRolled.roll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus };
-    defendData = { side: humanSide, action: chosenAction, style: myStyle, roll: humanRolled.roll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus };
+    attackData = { side: npcSide, action: npcAction, style: npcStyle, roll: npcRolled.roll, rawRoll: npcRolled.rawRoll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus };
+    defendData = { side: humanSide, action: chosenAction, style: myStyle, roll: humanRolled.roll, rawRoll: humanRolled.rawRoll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus };
   }
 
   var icLine = (data.icLine || '').toString().slice(0, 500);
@@ -1625,10 +1630,12 @@ function resolveContest(found, attackSide, defendSide, attackData, defendData, s
   // itself is untouched by any of this: it's still the SAME roll gap
   // as before, still driving progressForMargin()/tackleFailOutcome()/
   // tackleSucceedOutcome() exactly as it always has.
-  // skipRps (autoFillGoalKick only): style never entered into this
-  // exchange at all (it's a punitive 1d50-vs-1d100 auto-fill, no style
-  // picked by anyone) — decide the winner on the raw roll alone, and
-  // log it as 'no_rps' rather than a misleading style 'tie'.
+  // skipRps (autoFillGoalKick, and now autoFillContest's general 24h
+  // stale fallback too): style never entered into this exchange at all
+  // for the auto-filled side (it's a punitive degraded-dice auto-fill,
+  // no style picked by anyone on that side) — decide the winner on the
+  // raw roll alone, and log it as 'no_rps' rather than a misleading
+  // style 'tie'.
   var rps = skipRps ? 'no_rps' : rpsStyleResult(attackData.style, defendData.style);
   var attackWins = skipRps ? (attackData.roll > defendData.roll)
     : (rps === 'tie' ? (attackData.roll > defendData.roll) : (rps === 'attack'));
@@ -1732,6 +1739,7 @@ function resolveContest(found, attackSide, defendSide, attackData, defendData, s
 
 function clearPending(found) {
   found.sheet.getRange(found.row, 19, 1, 8).setValues([['', '', '', '', '', '', false, '']]);
+  found.sheet.getRange(found.row, 49).clearContent();
   found.sheet.getRange(found.row, 45).setValue(''); // PendingStyle
 }
 
@@ -1856,6 +1864,7 @@ function submitShoot(data) {
       found.sheet.getRange(found.row, 30, 1, 7).setValues([[
         role, teamSide, rolled1.roll, char1.name, char1.position, rolled1.bonus, data.loggedInUsername
       ]]);
+      found.sheet.getRange(found.row, 50).setValue(rolled1.rawRoll); // PendingShootRawRoll
       found.sheet.getRange(found.row, 37).setValue(new Date().toISOString());
       found.sheet.getRange(found.row, 42).setValue(new Date().toISOString());
       found.sheet.getRange(found.row, 46).setValue(myStyle); // PendingShootStyle
@@ -1883,11 +1892,11 @@ function submitShoot(data) {
 
     var shootData, saveData;
     if (m[29] === 'shoot') {
-      shootData = { roll: m[31], character: m[32], position: m[33], bonus: !!m[34], style: pendingShootStyle };
-      saveData = { roll: rolled2.roll, character: char2.name, position: char2.position, bonus: rolled2.bonus, style: myStyle };
+      shootData = { roll: m[31], rawRoll: Number(m[49]) || Math.max(1, Number(m[31]) - (m[34] ? 10 : 0)), character: m[32], position: m[33], bonus: !!m[34], style: pendingShootStyle };
+      saveData = { roll: rolled2.roll, rawRoll: rolled2.rawRoll, character: char2.name, position: char2.position, bonus: rolled2.bonus, style: myStyle };
     } else {
-      shootData = { roll: rolled2.roll, character: char2.name, position: char2.position, bonus: rolled2.bonus, style: myStyle };
-      saveData = { roll: m[31], character: m[32], position: m[33], bonus: !!m[34], style: pendingShootStyle };
+      shootData = { roll: rolled2.roll, rawRoll: rolled2.rawRoll, character: char2.name, position: char2.position, bonus: rolled2.bonus, style: myStyle };
+      saveData = { roll: m[31], rawRoll: Number(m[49]) || Math.max(1, Number(m[31]) - (m[34] ? 10 : 0)), character: m[32], position: m[33], bonus: !!m[34], style: pendingShootStyle };
     }
 
     var icLine = (data.icLine || '').toString().slice(0, 500);
@@ -1922,26 +1931,30 @@ function resolvePvNPCShoot(found, data, shootSide, gkSide, humanSide, myStyle) {
 
   var shootData, saveData;
   if (humanAction === 'shoot') {
-    shootData = { roll: humanRolled.roll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus, style: myStyle };
-    saveData = { roll: npcRolled.roll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus, style: npcStyle };
+    shootData = { roll: humanRolled.roll, rawRoll: humanRolled.rawRoll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus, style: myStyle };
+    saveData = { roll: npcRolled.roll, rawRoll: npcRolled.rawRoll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus, style: npcStyle };
   } else {
-    shootData = { roll: npcRolled.roll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus, style: npcStyle };
-    saveData = { roll: humanRolled.roll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus, style: myStyle };
+    shootData = { roll: npcRolled.roll, rawRoll: npcRolled.rawRoll, character: npcChar.name, position: npcChar.position, bonus: npcRolled.bonus, style: npcStyle };
+    saveData = { roll: humanRolled.roll, rawRoll: humanRolled.rawRoll, character: humanChar.name, position: humanChar.position, bonus: humanRolled.bonus, style: myStyle };
   }
 
   var icLine = (data.icLine || '').toString().slice(0, 500);
   return resolveShoot(found, shootSide, gkSide, shootData, saveData, data.characterName, icLine, false, matchType);
 }
 
-function resolveShoot(found, shootSide, gkSide, shootData, saveData, submittedBy, icLine, autoResolved, matchType) {
+function resolveShoot(found, shootSide, gkSide, shootData, saveData, submittedBy, icLine, autoResolved, matchType, skipRps) {
   var m = found.data;
   var margin = Math.abs(shootData.roll - saveData.roll);
   if (margin === 0) margin = 1;
   // Same RPS-decides-the-duel rule as resolveContest: style beats style
   // decides shooter-vs-GK; the raw roll only breaks a tie. Margin is
   // still the same roll gap, still driving shootBucketLookup() untouched.
-  var rps = rpsStyleResult(shootData.style, saveData.style);
-  var shooterWins = rps === 'tie' ? (shootData.roll > saveData.roll) : (rps === 'attack');
+  // skipRps (autoFillShoot's general 24h stale fallback): the auto-filled
+  // side never picked a style, so skip RPS entirely and decide on the
+  // raw roll alone, logged as 'no_rps' — same reasoning as resolveContest.
+  var rps = skipRps ? 'no_rps' : rpsStyleResult(shootData.style, saveData.style);
+  var shooterWins = skipRps ? (shootData.roll > saveData.roll)
+    : (rps === 'tie' ? (shootData.roll > saveData.roll) : (rps === 'attack'));
 
   var shootType = (m[42] || 'open_play').toString();
   var bucket = shootBucketLookup(shootType, shooterWins ? 'success' : 'fail', margin);
@@ -2005,6 +2018,7 @@ function resolveShoot(found, shootSide, gkSide, shootData, saveData, submittedBy
 
 function clearPendingShoot(found) {
   found.sheet.getRange(found.row, 30, 1, 8).setValues([['', '', '', '', '', false, '', '']]);
+  found.sheet.getRange(found.row, 50).clearContent();
   found.sheet.getRange(found.row, 46).setValue(''); // PendingShootStyle
 }
 
@@ -2082,25 +2096,84 @@ function checkHalfBoundary(found, halfMinute) {
 }
 
 function startSecondHalf(data) {
-  var found = findMatch(data.matchCode);
-  if (!found) return { error: 'Match tidak ditemukan.' };
-  var m = found.data;
-  if (m[8] !== 'H1' || m[6] !== 'halftime') return { error: 'Match tidak sedang menunggu babak kedua.' };
-  var secondHalfKickoff = m[17] === 'A' ? 'B' : 'A'; // whoever didn't kick off H1
-  // Status(7), Phase(9), HalfMinute(10), TeamInAttack(11) are not contiguous
-  // with MatchType(8) sitting in between — write each individually so
-  // MatchType is never touched.
-  found.sheet.getRange(found.row, 7).setValue('active');
-  found.sheet.getRange(found.row, 9).setValue('H2');
-  found.sheet.getRange(found.row, 10).setValue(0);
-  found.sheet.getRange(found.row, 11).setValue(secondHalfKickoff);
-  found.sheet.getRange(found.row, 44).setValue(true); // KickoffPending
-  // Defensive: if the half happened to END on the exact contest that set
-  // GoalKickPending (last roll of the half landing in the goalkick
-  // bucket), don't carry that requirement into the new half — it always
-  // restarts with an ordinary kickoff instead.
-  found.sheet.getRange(found.row, 47, 1, 2).setValues([[false, '']]);
-  return { success: true, phase: 'H2', teamInAttack: secondHalfKickoff };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { error: 'Sistem sedang sibuk, coba sebentar lagi.' };
+  var secondHalfKickoff = '';
+  try {
+    var found = findMatch(data.matchCode);
+    if (!found) return { error: 'Match tidak ditemukan.' };
+    var m = found.data;
+    if (m[8] !== 'H1' || m[6] !== 'halftime') {
+      return { error: 'Match tidak sedang menunggu babak kedua.' };
+    }
+    if (!data.loggedInUsername) return { error: 'Gagal mendeteksi akun. Coba refresh halaman.' };
+
+    if (m[17] !== 'A' && m[17] !== 'B') {
+      return { error: 'Tim yang melakukan kick off babak pertama belum tercatat.' };
+    }
+    secondHalfKickoff = m[17] === 'A' ? 'B' : 'A'; // The other side kicks off H2.
+    var defendSide = secondHalfKickoff === 'A' ? 'B' : 'A';
+    var matchType = (m[7] || 'PvP').toString().trim();
+    var access = resolveCharacterAccess(data.loggedInUsername, data.matchCode, data.characterName, matchType);
+    if (!access.allowed) return { error: access.error };
+    if (!validateStyle(data.styleType)) return { error: 'Pilih gaya main: Pace, Power, atau Skill.' };
+    if (String(access.position || '').toUpperCase() === 'GK') {
+      return { error: 'Kiper tidak bisa mengambil kick off. Pilih pemain lain.' };
+    }
+
+    if (matchType === 'PvP' && access.side !== secondHalfKickoff) {
+      var kickoffSchool = secondHalfKickoff === 'A' ? m[2] : m[4];
+      return { error: 'Pemain dari ' + kickoffSchool + ' yang harus melakukan Kick Off babak kedua.' };
+    }
+    if (matchType === 'PvNPC') {
+      if (isSideAllNPC(data.matchCode, 'A') && isSideAllNPC(data.matchCode, 'B')) {
+        return { error: 'Gunakan match type NPCvNPC untuk pertandingan dengan dua tim NPC.' };
+      }
+      var humanSide = isSideAllNPC(data.matchCode, secondHalfKickoff) ? defendSide : secondHalfKickoff;
+      if (access.side !== humanSide) {
+        return { error: 'Pilih karakter dari tim yang dikendalikan pemain untuk memulai Kick Off babak kedua.' };
+      }
+    }
+    if (matchType === 'NPCvNPC') {
+      if (!isFootballAdmin(data.loggedInUsername)) {
+        return { error: 'Match NPC vs NPC hanya bisa di-roll oleh admin.' };
+      }
+      if (access.side !== secondHalfKickoff) {
+        var npcKickoffSchool = secondHalfKickoff === 'A' ? m[2] : m[4];
+        return { error: 'Pilih karakter dari ' + npcKickoffSchool + ' untuk melakukan Kick Off babak kedua.' };
+      }
+    }
+
+    // Run the same cooldown and daily-cap checks as the regular kickoff roll
+    // before changing the match into H2, so a blocked roll cannot leave a
+    // half-started kickoff state behind.
+    if (matchType === 'PvNPC' || matchType === 'NPCvNPC') {
+      var cooldown = checkPvNPCCooldown(data.matchCode, data.characterName);
+      if (cooldown.blocked) return cooldown;
+      var dailyCap = checkPvNPCDailyCap(data.matchCode, data.characterName);
+      if (dailyCap.blocked) return dailyCap;
+    }
+
+    // Reset possession from H1 and all restart/shoot state. The team that
+    // kicks off H2 is always the attacking side for the forced Pass roll.
+    found.sheet.getRange(found.row, 7).setValue('active');
+    found.sheet.getRange(found.row, 9).setValue('H2');
+    found.sheet.getRange(found.row, 10).setValue(0);
+    found.sheet.getRange(found.row, 11).setValue(secondHalfKickoff);
+    found.sheet.getRange(found.row, 28, 1, 10).setValues([['', false, '', '', '', '', '', false, '', '']]);
+    found.sheet.getRange(found.row, 44).setValue(true); // KickoffPending
+    found.sheet.getRange(found.row, 47, 1, 2).setValues([[false, '']]); // Clear GoalKickPending
+    found.sheet.getRange(found.row, 42).setValue(new Date().toISOString()); // LastActivity
+  } finally {
+    lock.releaseLock();
+  }
+
+  // Resolve the H2 kickoff through the ordinary contest path. PvP parks the
+  // first side's forced Pass/Interception and waits for the opponent; PvNPC
+  // and NPCvNPC resolve the other side in the same request, like kickoff().
+  var result = submitRoll(data);
+  if (result && typeof result === 'object' && !result.error) result.isKickoffRoll = true;
+  return result;
 }
 
 function startExtraTime(data) {
@@ -2206,19 +2279,22 @@ function autoFillContest(found) {
   if (!char) return; // nothing registered to fill with — leave it parked
   var roll = Math.floor(Math.random() * 50) + 1; // degraded 1-50, no bonus applied
   var pendingStyle = validateStyle(m[44]) || randomStyle(); // the side that already rolled kept their style there
-  var fillStyle = randomStyle(); // the auto-filled side gets a random style too
+  // No style for the auto-filled side, and no RPS at all (skipRps below) —
+  // same punitive treatment as autoFillGoalKick: whoever rolled higher
+  // simply wins, no style ever entered into it.
+  var fillStyle = '';
 
   var attackData, defendData;
   if (pendingSide === attackSide) {
-    attackData = { side: attackSide, action: m[20], roll: m[21], character: m[22], position: m[23], bonus: !!m[24], style: pendingStyle };
+    attackData = { side: attackSide, action: m[20], roll: m[21], rawRoll: Number(m[48]) || Math.max(1, Number(m[21]) - (m[24] ? 10 : 0)), character: m[22], position: m[23], bonus: !!m[24], style: pendingStyle };
     defendData = { side: defendSide, action: missingAction, roll: roll, character: char.name, position: char.position, bonus: false, style: fillStyle };
   } else {
     attackData = { side: attackSide, action: missingAction, roll: roll, character: char.name, position: char.position, bonus: false, style: fillStyle };
-    defendData = { side: defendSide, action: m[20], roll: m[21], character: m[22], position: m[23], bonus: !!m[24], style: pendingStyle };
+    defendData = { side: defendSide, action: m[20], roll: m[21], rawRoll: Number(m[48]) || Math.max(1, Number(m[21]) - (m[24] ? 10 : 0)), character: m[22], position: m[23], bonus: !!m[24], style: pendingStyle };
   }
 
-  var note = '[Sistem roll otomatis untuk ' + char.name + ' setelah 24 jam tidak ada respons]';
-  resolveContest(found, attackSide, defendSide, attackData, defendData, 'Girok (auto)', note, true);
+  var note = '[Sistem roll otomatis (1d50, tanpa gaya) untuk ' + char.name + ' setelah 24 jam tidak ada respons]';
+  resolveContest(found, attackSide, defendSide, attackData, defendData, 'Girok (auto)', note, true, true);
 }
 
 function autoFillShoot(found) {
@@ -2232,19 +2308,21 @@ function autoFillShoot(found) {
   if (!char) return;
   var roll = Math.floor(Math.random() * 50) + 1;
   var pendingStyle = validateStyle(m[45]) || randomStyle();
-  var fillStyle = randomStyle();
+  // No style for the auto-filled side, and no RPS at all (skipRps below) —
+  // same punitive treatment as autoFillGoalKick/autoFillContest.
+  var fillStyle = '';
 
   var shootData, saveData;
   if (m[29] === 'shoot') {
-    shootData = { roll: m[31], character: m[32], position: m[33], bonus: !!m[34], style: pendingStyle };
+    shootData = { roll: m[31], rawRoll: Number(m[49]) || Math.max(1, Number(m[31]) - (m[34] ? 10 : 0)), character: m[32], position: m[33], bonus: !!m[34], style: pendingStyle };
     saveData = { roll: roll, character: char.name, position: char.position, bonus: false, style: fillStyle };
   } else {
     shootData = { roll: roll, character: char.name, position: char.position, bonus: false, style: fillStyle };
-    saveData = { roll: m[31], character: m[32], position: m[33], bonus: !!m[34], style: pendingStyle };
+    saveData = { roll: m[31], rawRoll: Number(m[49]) || Math.max(1, Number(m[31]) - (m[34] ? 10 : 0)), character: m[32], position: m[33], bonus: !!m[34], style: pendingStyle };
   }
 
-  var note = '[Sistem roll otomatis untuk ' + char.name + ' setelah 24 jam tidak ada respons]';
-  resolveShoot(found, shootSide, gkSide, shootData, saveData, 'Girok (auto)', note, true, 'PvP');
+  var note = '[Sistem roll otomatis (1d50, tanpa gaya) untuk ' + char.name + ' setelah 24 jam tidak ada respons]';
+  resolveShoot(found, shootSide, gkSide, shootData, saveData, 'Girok (auto)', note, true, 'PvP', true);
 }
 
 // No RPS here at all — neither side picked a style, since neither side
@@ -2462,10 +2540,10 @@ function setupSheets() {
 
   setupShootConfig(ss, SHOOT_CONFIG_SHEETS.freekick,
     [
-      g('Tendangan {pemain} melengkung ke sudut atas gawang — dan gol!'),
+      g('Tendangan {pemain} melengkung ke sudut atas gawang. Dan gol!'),
       g('Tendangan {pemain} melesat masuk ke sisi gawang. Gol!'),
       g('{pemain} mencetak gol dengan sundulan setelah menerima bola hasil tendangan bebas langsung!'),
-      g('{pemain} menyundul bola ke gawang setelah tendangan {teammate} membentur mistar — dan gol!'),
+      g('{pemain} menyundul bola ke gawang setelah tendangan {teammate} membentur mistar. Dan gol!'),
       g('{pemain} mencetak gol dengan tendangan setelah bola ditepis {opponent}!'),
       g('{pemain} mencetak gol dengan sundulan setelah bola ditepis {opponent}!'),
       g('{opponent} mencetak gol bunuh diri!')
@@ -2483,8 +2561,8 @@ function setupSheets() {
 
   setupShootConfig(ss, SHOOT_CONFIG_SHEETS.open_play,
     [
-      g('{pemain} berhasil melewati {opponent} dengan mencongkel bola melewati kepalanya — dan mencetak gol!'),
-      g('{pemain} mencongkel bola melewati kepala {kiper} — dan gol!'),
+      g('{pemain} berhasil melewati {opponent} dengan mencongkel bola melewati kepalanya. Dan mencetak gol!'),
+      g('{pemain} mencongkel bola melewati kepala {kiper}. Dan gol!'),
       g('{pemain} mencetak gol setelah berhasil melewati dua pemain lawan!'),
       g('{pemain} mencetak gol setelah melakukan operan satu-dua dengan {teammate}.'),
       g('{pemain} menyundul bola ke gawang setelah tendangan {teammate} membentur mistar. Gol!'),
@@ -2496,8 +2574,8 @@ function setupSheets() {
       g('{pemain} mencetak gol setelah menerima umpan lambung dari {teammate}.'),
       g('Bebas deskripsikan cara {pemain} mencetak gol.'),
       g('{pemain} mencetak gol dengan assist {teammate}.'),
-      g('{pemain} melakukan tendangan keras dari luar kotak penalti. Bola melesat ke sisi/tengah gawang — dan gol!'),
-      g('{pemain} melakukan tendangan dari luar kotak penalti. Bola melesat ke sudut atas gawang — dan gol!'),
+      g('{pemain} melakukan tendangan keras dari luar kotak penalti. Bola melesat ke sisi/tengah gawang. Dan gol!'),
+      g('{pemain} melakukan tendangan dari luar kotak penalti. Bola melesat ke sudut atas gawang. Dan gol!'),
       g('{opponent} mencetak gol bunuh diri.')
     ],
     [

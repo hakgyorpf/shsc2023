@@ -121,6 +121,7 @@
   margin: 0 auto;
 }
 .fbf-score-points { font-family: 'IBM Plex Mono', monospace; font-size: 1.8rem; font-weight: bold; color: var(--high); }
+.fbf-goals { margin-top: 0.05rem; font-family: 'IBM Plex Mono', monospace; font-size: 0.54rem; line-height: 1.45; color: var(--gold); text-align: center; overflow-wrap: anywhere; }
 .fbf-progress-row { margin-top: 0.6rem; }
 .fbf-progress-label { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; color: var(--text-on-deep-secondary); margin-bottom: 0.2rem; }
 .fbf-progress-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden; margin-bottom: 0.5rem; }
@@ -151,16 +152,95 @@
   font-size: 0.72rem; color: var(--text-on-deep-secondary); line-height: 1.7;
 }
 .fbf-guide-title {
-  font-family: 'IBM Plex Mono', monospace; font-size: 0.58rem; letter-spacing: 1.5px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; letter-spacing: 1.5px;
   text-transform: uppercase; color: var(--accent-1); font-weight: bold; margin-bottom: 0.65rem;
 }
 .fbf-guide-sep { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.75rem 0; }
 .fbf-guide-list { margin: 0.45rem 0 0; padding-left: 1.2rem; }
 .fbf-guide-list li { margin-bottom: 0.35rem; }
 
+.fbf-guide-block {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 1rem;
+  margin: 0.85rem 0;
+}
+
+.fbf-guide-label {
+  color: var(--accent-1);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.66rem;
+  font-weight: bold;
+}
+
+.fbf-guide-text {
+  min-width: 0;
+  line-height: 1.65;
+}
+.fbf-guide-strategies {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.fbf-guide-strategy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.35rem 0.55rem;
+}
+.fbf-guide-chip {
+  display: inline-block;
+  flex: none;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  font-weight: bold;
+}
+.fbf-guide-chip.pace {
+  background: rgba(82, 183, 136, 0.18);
+  color: var(--accent-2);
+}
+
+.fbf-guide-chip.power {
+  background: rgba(212, 160, 23, 0.18);
+  color: var(--gold);
+}
+
+.fbf-guide-chip.skill {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--high);
+}
+
+.fbf-guide-sep {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  margin: 0.9rem 0;
+}
+
+.fbf-guide-list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.fbf-guide-list li {
+  margin-bottom: 0.35rem;
+}
+
+.fbf-guide-footnote {
+  margin-top: 1rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
 @media (max-width: 520px) {
-  .fbf-side-row, .fbf-action-row { grid-template-columns: 1fr; }
-  .fbf-style-row { grid-template-columns: 1fr; }
+  .fbf-guide-block {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
 }
 </style>
 
@@ -168,18 +248,104 @@
   <p class="fbf-eventname">Suwon-si High School Competition 2023</p>
   <p class="fbf-eventsub">⚽ Football</p>
 
-  <div class="fbf-guide">
-    <div class="fbf-guide-title">Panduan Mengisi Form</div>
-    <ul class="fbf-guide-list">
-      <li>Pilih pertandingan, lalu pilih <b>nama karaktermu</b> dari roster tim. Sistem akan mengecek apakah akunmu yang login memang berhak roll sebagai karakter itu (akun terdaftar di roster, atau proxy yang diizinkan). Karakter yang kamu pilih itulah yang akan tampil di deskripsi hasil roll dan yang benar-benar melakukan aksinya — pilih karakter yang posisinya cocok dengan aksi (misalnya DF untuk Tackle, MF untuk Interception, FW untuk Shoot) supaya dapat bonus posisi.</li>
-      <li>Saat timmu sedang <b>menyerang</b>, kamu bisa memilih Dribble atau Pass. Saat sedang <b>bertahan</b>, kamu memilih Tackle atau Interception — kecuali lawanmu sudah lebih dulu roll, di mana aksimu otomatis mengikuti aksi mereka (kamu tinggal roll).</li>
-      <li>Setiap roll — open-play maupun Shoot/Save — kamu juga memilih gaya main: <b>Pace</b>, <b>Power</b>, atau <b>Skill</b>. Pace mengalahkan Power, Power mengalahkan Skill, Skill mengalahkan Pace — gaya ini yang menentukan siapa menang duel. Kalau kedua tim pilih gaya yang sama, roll tertinggi yang menang (seperti biasa).</li>
-      <li>Kick off dan restart (mulai babak/extra time) selalu diawali Pass melawan Interception — belum bisa dribble sebelum operan pertama itu selesai.</li>
-      <li>Hasil roll ditampilkan langsung, tidak disembunyikan — jadi kalau kamu roll duluan, silakan cek halaman pertandingan sambil menunggu lawan menyelesaikan roll-nya.</li>
-      <li>Progress terus terkumpul untuk timmu (tidak hilang saat bola berpindah), dan begitu mencapai 50, tombol <b>Shoot!</b> akan muncul.</li>
-      <li>Kiper (GK) hanya bisa roll Save, dan hanya muncul saat tim lawan melakukan Shoot.</li>
-    </ul>
+<div class="fbf-guide">
+  <div class="fbf-guide-title">Panduan Mengisi Form</div>
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">Pertandingan</div>
+    <div class="fbf-guide-text">
+      Pilih pertandingan yang sedang berlangsung dari daftar.
+    </div>
   </div>
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">Nama Karakter</div>
+    <div class="fbf-guide-text">
+      Pilih karakter dari roster. Setelah memilih, cek posisi dan sisa jatah roll hari ini. Pastikan akunmu memiliki akses untuk melakukan roll sebagai karakter tersebut.
+    </div>
+  </div>
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">3. Aksi</div>
+    <div class="fbf-guide-text">
+      Pilih aksi sesuai peran timmu saat ini.
+      <ul class="fbf-guide-list">
+        <li>Saat menyerang: Dribble atau Pass.</li>
+        <li>Saat bertahan: Tackle atau Interception.</li>
+        <li>Jika satu tim sudah roll lebih dulu, aksi balasan lawan dipilih otomatis. Pasangan aksi: Dribble vs Tackle, Pass vs Interception.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">4. Gaya Bermain</div>
+    <div class="fbf-guide-text">
+      Pilih Pace, Power, atau Skill sebelum roll.
+      <div class="fbf-guide-strategies">
+        <div class="fbf-guide-strategy">
+          <span class="fbf-guide-chip pace">⚡ Pace</span>
+          <span>Menang melawan Power, tetapi kalah dari Skill.</span>
+        </div>
+        <div class="fbf-guide-strategy">
+          <span class="fbf-guide-chip power">💥 Power</span>
+          <span>Menang melawan Skill, tetapi kalah dari Pace.</span>
+        </div>
+        <div class="fbf-guide-strategy">
+          <span class="fbf-guide-chip skill">🎯 Skill</span>
+          <span>Menang melawan Pace, tetapi kalah dari Power.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="fbf-guide-sep">
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">5. Sistem Roll</div>
+    <div class="fbf-guide-text">
+      Gaya bermain menentukan pemenang. Jika kedua pemain memilih gaya yang sama, angka roll tertinggi menang.
+      <ul class="fbf-guide-list">
+        <li>Bonus +10 diberikan untuk Defender saat Tackle, Midfielder saat Interception, dan Forward saat Shoot.</li>
+        <li>Tiap pemain di PvNPC dan NPCvNPC bisa melakukan maksimal 1 roll/30 menit dan 5 roll/hari kecuali Kiper. Tidak ada batas harian untuk PvP.</li>
+        <li>Di PvP, roll dilakukan secara bergantian.</li>
+        <li>Di PvNPC, respons NPC diproses otomatis.</li>
+        <li>Match NPCvNPC hanya bisa di-roll oleh admin.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">6. Kick Off</div>
+    <div class="fbf-guide-text">
+      Pada kick off babak pertama, babak kedua, dan extra time, tim yang melakukan kick off menjadi tim menyerang. Roll pertama otomatis menggunakan Pass vs Interception. Dribble belum bisa digunakan.
+    </div>
+  </div>
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">7. Progress dan Shoot</div>
+    <div class="fbf-guide-text">
+      Saat progress tim menyerang mencapai 50, tim mendapat kesempatan Shoot. Open play Shoot mengurai 50 poin progress. Tendangan bebas, penalti, dan corner tidak mengurangi progress. Progress tim tetap tersimpan meskipun bola berpindah.
+    </div>
+  </div>
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">8. Save dan Goal Kick</div>
+    <div class="fbf-guide-text">
+      Hanya kiper yang boleh melakukan Save atau Goal Kick. Kiper hanya bisa melakukan dua aksi ini. Tidak ada batas roll maksimal (per 30 menit maupun harian) untuk Kiper.
+    </div>
+  </div>
+
+  <div class="fbf-guide-block">
+    <div class="fbf-guide-label">9. Narasi RP</div>
+    <div class="fbf-guide-text">
+      Opsional. Tambahkan narasi singkat tentang aksi karaktermu. Kosongkan jika tidak ingin menulis narasi.
+    </div>
+  </div>
+
+  <div class="fbf-guide-footnote">
+    <b>Catatan:</b> Jika form gagal dimuat, tunggu beberapa saat sebelum refresh. Jika kendala berlanjut, hubungi Seonbi.
+  </div>
+</div>
 
   <div class="fbf-warn" id="fbf-warn">Kamu harus login terlebih dahulu sebelum roll.</div>
 
@@ -200,7 +366,7 @@
         <button type="button" class="fbf-dropdown-btn" id="fbf-char-dropdown-btn" onclick="toggleCharDropdown(event)">— Pilih karaktermu —</button>
         <div class="fbf-dropdown-list" id="fbf-char-dropdown-list"></div>
       </div>
-      <p class="fbf-note" id="fbf-char-status"></p>
+      <p class="fbf-note" id="fbf-char-status" aria-live="polite"></p>
     </div>
 
     <div id="fbf-action-area"></div>
@@ -224,6 +390,7 @@
       <div id="fbf-rolling-label" style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; letter-spacing:1px; color:#eef7f0; margin-top:1rem; font-weight:bold; line-height:1.6;">Rolling...</div>
     </div>
     <div id="fbf-reveal-stage" style="display:none; margin-top:1rem;">
+      <div id="fbf-style-scheme" style="font-family:'IBM Plex Mono',monospace; font-size:0.62rem; letter-spacing:0.5px; color:#d8f3dc; text-align:center; margin:0 0 0.75rem; font-weight:bold;">Pace > Power > Skill > Pace</div>
       <div id="fbf-row-mine" style="background:#eaf4ec; border-radius:16px; padding:1rem 1.2rem; margin-bottom:0.75rem; opacity:0.4; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.18); text-align:left;">
         <div id="fbf-row-mine-name" style="font-family:'IBM Plex Mono',monospace; font-size:0.78rem; color:#0f2818; font-weight:bold;">—</div>
         <div id="fbf-mine-action" style="font-family:'IBM Plex Mono',monospace; font-size:0.66rem; color:#2d6a4f; margin-top:0.25rem; font-style:italic;">—</div>
@@ -231,7 +398,7 @@
           <div id="fbf-mine-style" style="font-family:'IBM Plex Mono',monospace; font-size:0.74rem; color:#0f2818; font-weight:bold;">—</div>
           <div style="text-align:right;">
             <div style="font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#0f2818;">ROLL</div>
-            <div id="fbf-mine-roll" style="font-family:'IBM Plex Mono',monospace; font-size:1.8rem; color:#0f2818; font-weight:bold;">--</div>
+            <div style="display:flex; align-items:baseline; justify-content:flex-end; gap:0.28rem;"><div id="fbf-mine-roll" style="font-family:'IBM Plex Mono',monospace; font-size:1.8rem; color:#0f2818; font-weight:bold;">--</div><div id="fbf-mine-roll-bonus" style="font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:#2d6a4f; font-weight:700;"></div><div id="fbf-mine-roll-total" style="font-family:'IBM Plex Mono',monospace; font-size:1.15rem; color:#0f2818; font-weight:bold;"></div></div>
           </div>
         </div>
       </div>
@@ -242,7 +409,7 @@
           <div id="fbf-opp-style" style="font-family:'IBM Plex Mono',monospace; font-size:0.74rem; color:#0f2818; font-weight:bold;">—</div>
           <div style="text-align:right;">
             <div style="font-family:'IBM Plex Mono',monospace; font-size:0.6rem; color:#0f2818;">ROLL</div>
-            <div id="fbf-opp-roll" style="font-family:'IBM Plex Mono',monospace; font-size:1.8rem; color:#0f2818; font-weight:bold;">--</div>
+            <div style="display:flex; align-items:baseline; justify-content:flex-end; gap:0.28rem;"><div id="fbf-opp-roll" style="font-family:'IBM Plex Mono',monospace; font-size:1.8rem; color:#0f2818; font-weight:bold;">--</div><div id="fbf-opp-roll-bonus" style="font-family:'IBM Plex Mono',monospace; font-size:0.68rem; color:#2d6a4f; font-weight:700;"></div><div id="fbf-opp-roll-total" style="font-family:'IBM Plex Mono',monospace; font-size:1.15rem; color:#0f2818; font-weight:bold;"></div></div>
           </div>
         </div>
       </div>
@@ -314,15 +481,28 @@
   };
   var OUTCOME_CONTINUATION = {
     open_play: function(att, def) { return att + ' still has the ball possession.'; },
-    throwin_attack: function(att, def) { return 'the ball goes out - throw-in for ' + att + '.'; },
-    throwin_defend: function(att, def) { return 'the ball goes out - throw-in for ' + def + '.'; },
+    throwin_attack: function(att, def) { return 'the ball goes out. Throw-in for ' + att + '.'; },
+    throwin_defend: function(att, def) { return 'the ball goes out. Throw-in for ' + def + '.'; },
     goalkick: function(att, def) { return 'the ball goes out for a goal kick.'; },
     corner: function(att, def) { return 'the ball goes out for a corner kick!'; },
-    foul: function(att, def) { return 'a foul is committed - free kick awarded.'; },
+    foul: function(att, def) { return 'A foul is committed. Free kick awarded to ' + att + '.'; },
     penalty: function(att, def) { return 'PENALTY!! A penalty kick is awarded.'; }
   };
 
   function esc(s) { var d=document.createElement('div'); d.appendChild(document.createTextNode(s==null?'':String(s))); return d.innerHTML; }
+
+  function sentencePunctuation(text) {
+    return String(text || '')
+      .replace(/\s*[—–]\s*/g, '. ')
+      .replace(/\s+-\s+/g, '. ')
+      .replace(/(^|[.!?]\s+)([a-z])/g, function(_, sep, letter) { return sep + letter.toUpperCase(); });
+  }
+
+  function positionLabel(position) {
+    var labels = { FW: 'Forward', MF: 'Midfielder', DF: 'Defender', GK: 'Goalkeeper' };
+    var key = String(position || '').trim().toUpperCase();
+    return labels[key] || (position || '');
+  }
 
   function matchAction(a) {
     if (a === 'dribble') return 'tackle';
@@ -454,9 +634,72 @@
       var sideName = c.teamSide === 'A' ? (scoreData ? scoreData.schoolA : 'A') : (scoreData ? scoreData.schoolB : 'B');
       var item = document.createElement('div');
       item.className = 'fbf-dropdown-item';
-      item.textContent = c.characterName + ' (' + c.position + ') — ' + sideName + (c.isNPC ? ' (NPC)' : '') + (c.injured ? ' [cedera]' : '');
+      item.textContent = c.characterName + ' (' + positionLabel(c.position) + ') — ' + sideName + (c.isNPC ? ' (NPC)' : '') + (c.injured ? ' [cedera]' : '');
       item.onclick = function(e) { e.stopPropagation(); onCharacterSelected(c.characterName); };
       list.appendChild(item);
+    });
+  }
+
+  function dateKeyInWIB(date) {
+    var parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    var values = {};
+    parts.forEach(function(part) { values[part.type] = part.value; });
+    return values.year + '-' + values.month + '-' + values.day;
+  }
+
+  function logDateKey(postedAt) {
+    var match = String(postedAt || '').match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/);
+    if (!match) return '';
+    var months = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06', Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+    var month = months[match[2]];
+    if (!month) return '';
+    return match[3] + '-' + month + '-' + String(match[1]).padStart(2, '0');
+  }
+
+  function getDailyLogRows(action, matchCode) {
+    return new Promise(function(resolve, reject) {
+      var req = new XMLHttpRequest();
+      req.open('GET', GAS + '?action=' + encodeURIComponent(action) +
+        '&matchCode=' + encodeURIComponent(matchCode) + '&limit=5000', true);
+      req.onload = function() {
+        try {
+          var data = JSON.parse(req.responseText);
+          if (data.error) { reject(new Error(data.error)); return; }
+          resolve(data.rolls || data.shots || []);
+        } catch (err) { reject(err); }
+      };
+      req.onerror = function() { reject(new Error('Network error')); };
+      req.send();
+    });
+  }
+
+  function refreshDailyRollCounter(characterName, position) {
+    var statusEl = document.getElementById('fbf-char-status');
+    if (!statusEl || !scoreData) return;
+    if (scoreData.matchType === 'PvP') {
+      statusEl.textContent = 'Match PvP tidak memiliki batas roll harian.';
+      return;
+    }
+    if (String(position || '').toUpperCase() === 'GK') {
+      statusEl.textContent = 'Roll Goalkeeper tidak dibatasi.';
+      return;
+    }
+    statusEl.textContent = 'Menghitung sisa roll hari ini...';
+    Promise.all([
+      getDailyLogRows('getRollLog', curMatch),
+      getDailyLogRows('getShootLog', curMatch)
+    ]).then(function(results) {
+      if (curCharacterName !== characterName || curMatch !== scoreData.matchCode && scoreData.matchCode) return;
+      var today = dateKeyInWIB(new Date());
+      var count = results[0].concat(results[1]).filter(function(row) {
+        return row.submittedBy === characterName && logDateKey(row.postedAt) === today;
+      }).length;
+      var left = Math.max(0, 5 - count);
+      statusEl.textContent = 'Roll hari ini: ' + count + '/5';
+    }).catch(function() {
+      if (curCharacterName === characterName) statusEl.textContent = 'Hitungan roll hari ini tidak dapat dimuat.';
     });
   }
 
@@ -465,10 +708,11 @@
     curSide = '';
     selectedAction = '';
     selectedStyle = '';
-    document.getElementById('fbf-char-dropdown-btn').textContent = characterName;
+    var selectedCharacter = rosterList.filter(function(c) { return c.characterName === characterName; })[0];
+    document.getElementById('fbf-char-dropdown-btn').textContent = characterName + (selectedCharacter && selectedCharacter.position ? ' (' + positionLabel(selectedCharacter.position) + ')' : '');
     document.getElementById('fbf-char-dropdown-list').classList.remove('open');
     var statusEl = document.getElementById('fbf-char-status');
-    statusEl.textContent = 'Mengecek akses...';
+    statusEl.textContent = 'Memeriksa akses...';
     statusEl.style.color = '';
     var xa = new XMLHttpRequest();
     xa.open('GET', GAS + '?action=checkAccess&matchCode=' + encodeURIComponent(curMatch) +
@@ -478,23 +722,23 @@
         var d = JSON.parse(xa.responseText);
         if (!d.allowed) {
           curSide = '';
-          statusEl.textContent = d.error || 'Kamu tidak punya akses untuk karakter ini.';
+          statusEl.textContent = d.error || 'Kamu tidak punya akses untuk melakukan roll sebagai karakter ini.';
           statusEl.style.color = 'var(--card-red)';
           buildActionArea(scoreData);
           return;
         }
         curSide = d.side;
-        statusEl.textContent = '';
+        refreshDailyRollCounter(characterName, selectedCharacter && selectedCharacter.position);
         buildActionArea(scoreData);
       } catch (e) {
         console.error('onCharacterSelected: checkAccess failed (status ' + xa.status + '):', xa.responseText, e);
-        statusEl.textContent = 'Gagal mengecek akses. Coba lagi.';
+        statusEl.textContent = 'Gagal memeriksa akses. Silakan coba lagi.';
         statusEl.style.color = 'var(--card-red)';
       }
     };
     xa.onerror = function() {
       console.error('onCharacterSelected: network error contacting GAS');
-      statusEl.textContent = 'Gagal menghubungi server. Coba lagi.';
+      statusEl.textContent = 'Gagal menghubungi server. Silakan coba lagi.';
       statusEl.style.color = 'var(--card-red)';
     };
     xa.send();
@@ -506,6 +750,85 @@
       '<div class="fbf-progress-bar"><div class="fbf-progress-fill" style="width:'+pct+'%; background:'+color+';"></div></div></div>';
   }
 
+  function goalMinute(phase, minute) {
+    var value = parseInt(minute, 10) || 0;
+    if (phase === 'H2') value += 45;
+    else if (phase === 'ET1') value += 90;
+    else if (phase === 'ET2') value += 105;
+    return value + "'";
+  }
+
+function phaseLabel(phase) {
+  var key = String(phase || '').trim().toUpperCase();
+
+  if (key === 'H1') return 'First Half';
+  if (key === 'H2') return 'Second Half';
+  if (key === 'ET1') return 'Extra Time - First Half';
+  if (key === 'ET2') return 'Extra Time - Second Half';
+
+  if (
+    key === 'PEN' ||
+    key === 'PENALTY' ||
+    key === 'PENALTY_SHOOTOUT' ||
+    key === 'PENALTY SHOOTOUT'
+  ) {
+    return 'Penalty Shootout';
+  }
+
+  return phase || '';
+}
+
+  function goalLines(shots, side) {
+  var goals = (shots || []).filter(function(s) {
+    return s.outcome === 'goal' && s.shootSide === side;
+  });
+
+  if (!goals.length) return '';
+function minuteValue(s) {
+  var value = parseInt(s.minute, 10) || 0;
+  if (s.phase === 'H2') value += 45;
+  else if (s.phase === 'ET1') value += 90;
+  else if (s.phase === 'ET2') value += 105;
+  return value;
+}
+
+goals.sort(function(a, b) {
+  return minuteValue(a) - minuteValue(b);
+});
+
+  var grouped = {};
+  var scorerOrder = [];
+
+  goals.forEach(function(s) {
+    var scorer = s.characterShoot || 'Pencetak gol tidak tercatat';
+
+    if (!grouped[scorer]) {
+      grouped[scorer] = [];
+      scorerOrder.push(scorer);
+    }
+
+    grouped[scorer].push(goalMinute(s.phase, s.minute));
+  });
+
+  return '<div class="fbf-goals">' + scorerOrder.map(function(scorer) {
+    return '<div>⚽ ' + esc(scorer) + ' ' +
+      grouped[scorer].map(esc).join(', ') +
+      '</div>';
+  }).join('') + '</div>';
+}
+
+  function renderScoreWithGoals(d, rebuildSideUI, matchCode) {
+    getDailyLogRows('getShootLog', matchCode).then(function(shots) {
+      if (curMatch !== matchCode) return;
+      d.shots = shots;
+      renderScoreData(d, rebuildSideUI);
+    }).catch(function() {
+      if (curMatch !== matchCode) return;
+      d.shots = [];
+      renderScoreData(d, rebuildSideUI);
+    });
+  }
+
   function renderScoreData(d, rebuildSideUI) {
     var box = document.getElementById('fbf-score');
     try {
@@ -513,12 +836,12 @@
       scoreData = d;
       var html = '<div class="fbf-score-badges">';
       html += '<span class="fbf-score-typebadge ' + (d.matchType==='PvP'?'pvp':'pvnpc') + '">' + d.matchType + '</span>';
-      html += '<span class="fbf-score-typebadge phase">' + (d.phase||'—') + (d.status==='active' ? (" · " + (d.halfMinute||0) + "'") : '') + '</span>';
+      html += '<span class="fbf-score-typebadge phase">' + phaseLabel(d.phase) + (d.status==='active' ? (" · " + (d.halfMinute||0) + "'") : '') + '</span>';
       html += '</div>';
       html += '<div class="fbf-score-vs">';
-      html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolA||'') + '</div><div class="fbf-score-points">' + (d.scoreA||0) + '</div></div>';
+      html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolA||'') + '</div><div class="fbf-score-points">' + (d.scoreA||0) + '</div>' + goalLines(d.shots, 'A') + '</div>';
       html += '<div class="fbf-score-vsbutton">VS</div>';
-      html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolB||'') + '</div><div class="fbf-score-points">' + (d.scoreB||0) + '</div></div>';
+      html += '<div class="fbf-score-side"><div class="fbf-score-name">' + esc(d.schoolB||'') + '</div><div class="fbf-score-points">' + (d.scoreB||0) + '</div>' + goalLines(d.shots, 'B') + '</div>';
       html += '</div>';
       html += progressBar(d.schoolA + ' progress', d.progressA||0, 'var(--accent-2)');
       html += progressBar(d.schoolB + ' progress', d.progressB||0, 'var(--gold)');
@@ -552,10 +875,10 @@
       try { d = JSON.parse(x3.responseText); }
       catch (e) {
         console.error('loadScore: non-JSON response (status ' + x3.status + '):', x3.responseText);
-        box.innerHTML = 'Gagal memuat status match (respons server tidak valid). Coba muat ulang halaman.';
+        box.innerHTML = 'Gagal memuat status match (respons server tidak valid). Silakan coba muat ulang halaman.';
         return;
       }
-      renderScoreData(d, rebuildSideUI);
+      renderScoreWithGoals(d, rebuildSideUI, code);
     };
     x3.onerror = function() {
       console.error('loadScore: network error contacting GAS');
@@ -580,7 +903,7 @@
       }
       if (d.error) { box.innerHTML = esc(d.error); return; }
       rosterList = d.roster || [];
-      renderScoreData(d.score || {}, true);
+      renderScoreWithGoals(d.score || {}, true, code);
     };
     x.onerror = function() {
       console.error('loadFormMatchData: network error contacting GAS');
@@ -635,7 +958,7 @@
     area.appendChild(wrap);
     var hint = document.createElement('div');
     hint.className = 'fbf-style-hint';
-    hint.textContent = 'Pace > Power > Skill > Pace — gaya ini menentukan siapa menang duel.';
+    hint.textContent = 'Pace > Power > Skill > Pace — gaya bermain ini menentukan siapa yang memenangkan duel.';
     area.appendChild(hint);
   }
 
@@ -663,7 +986,11 @@
       return;
     }
 
-    if (d.status === 'halftime') { icField.style.display = 'none'; renderAdminControls(submitArea, d); return; }
+    if (d.status === 'halftime') {
+      if (d.phase === 'H1') renderSecondHalfKickoffControls(area, submitArea, d, icField);
+      else { icField.style.display = 'none'; renderAdminControls(submitArea, d); }
+      return;
+    }
 
     // Shoot flow
     var shootSide = d.shootReady;
@@ -680,7 +1007,7 @@
         // but catching it here means a non-GK character never sees the
         // animation flash before the error.
         if (curSide !== shootSide && !isCurCharacterGK()) {
-          area.innerHTML = '<div class="fbf-waitbox">Hanya kiper terdaftar tim ini yang bisa roll Save. Pilih karakter kiper di atas.</div>';
+          area.innerHTML = '<div class="fbf-waitbox">Hanya kiper tim ini yang bisa melakukan roll Save.</div>';
           icField.style.display = 'none';
           return;
         }
@@ -723,7 +1050,7 @@
         if (!isCurCharacterGK()) {
           var gkBlock = document.createElement('div');
           gkBlock.className = 'fbf-waitbox';
-          gkBlock.textContent = 'Hanya kiper terdaftar tim ini yang bisa roll Save. Pilih karakter kiper di atas.';
+          gkBlock.textContent = 'Hanya kiper tim ini yang bisa melakukan roll Save.';
           area.appendChild(gkBlock);
           icField.style.display = 'none';
           return;
@@ -781,7 +1108,7 @@
         return;
       }
       if (!isCurCharacterGK()) {
-        area.innerHTML = '<div class="fbf-waitbox">Hanya kiper terdaftar tim ini yang bisa melakukan Goal Kick. Pilih karakter kiper di atas.</div>';
+        area.innerHTML = '<div class="fbf-waitbox">Hanya kiper yang bisa melakukan Goal Kick.</div>';
         icField.style.display = 'none';
         return;
       }
@@ -848,15 +1175,57 @@
     submitArea.appendChild(goBtn);
   }
 
+  function renderSecondHalfKickoffControls(area, submitArea, d, icField) {
+    var kickoffSide = d.kickoffFirstHalf === 'A' ? 'B' : 'A';
+    var requiredSide = kickoffSide;
+
+    // PvNPC always requires the human-controlled side to submit. If the NPC
+    // team has H2 kickoff, the backend auto-resolves that kickoff and the
+    // human character supplies the matched response.
+    if (d.matchType === 'PvNPC') requiredSide = d.humanSide || kickoffSide;
+
+    if (d.matchType === 'NPCvNPC' && loggedInUsername !== 'Seonbi') {
+      icField.style.display = 'none';
+      area.innerHTML = '<div class="fbf-waitbox">Match NPC vs NPC hanya bisa di-roll oleh admin.</div>';
+      return;
+    }
+
+    if (curSide !== requiredSide) {
+      icField.style.display = 'none';
+      var expectedSchool = requiredSide === 'A' ? d.schoolA : d.schoolB;
+      area.innerHTML = '<div class="fbf-waitbox">Pilih karakter dari ' + esc(expectedSchool) + ' untuk memulai Kick Off babak kedua.</div>';
+      return;
+    }
+
+    if (blockGkFromAction(area, icField)) return;
+    icField.style.display = 'block';
+    var kickoffSchool = kickoffSide === 'A' ? d.schoolA : d.schoolB;
+    var note = document.createElement('div');
+    note.className = 'fbf-note';
+    note.style.marginBottom = '0.5rem';
+    note.textContent = d.matchType === 'PvNPC' && requiredSide !== kickoffSide
+      ? 'Kick Off babak kedua dilakukan oleh ' + kickoffSchool + '. Sistem akan menjalankan tim NPC.'
+      : 'Kick Off babak kedua: ' + kickoffSchool + ' memulai sebagai tim menyerang.';
+    area.appendChild(note);
+    selectedStyle = '';
+    renderStylePicker(area);
+
+    var btn = document.createElement('button');
+    btn.className = 'fbf-btn';
+    btn.textContent = 'Kick Off Babak Kedua ⚽';
+    btn.onclick = doSecondHalfKickoff;
+    submitArea.appendChild(btn);
+  }
+
   function renderAdminControls(area, d) {
     if (loggedInUsername !== 'Seonbi') {
-      area.innerHTML = '<div class="fbf-waitbox">Menunggu babak/fase berikutnya dimulai oleh admin.</div>';
+      area.innerHTML = '<div class="fbf-waitbox">Menunggu fase berikutnya dimulai oleh admin.</div>';
       return;
     }
     var btn = document.createElement('button');
     btn.className = 'fbf-btn';
-    if (d.phase === 'H1') { btn.textContent = 'Mulai Babak Kedua'; btn.onclick = function(){ doPhaseAction('startSecondHalf'); }; }
-    else { btn.textContent = 'Mulai Extra Time'; btn.onclick = function(){ doPhaseAction('startExtraTime'); }; }
+    btn.textContent = 'Mulai Extra Time';
+    btn.onclick = function(){ doPhaseAction('startExtraTime'); };
     area.appendChild(btn);
   }
 
@@ -870,11 +1239,24 @@
 
   function showErr(msg) { var el = document.getElementById('fbf-err'); el.textContent = msg; el.style.display = 'block'; }
 
+  function doSecondHalfKickoff() {
+    var err = document.getElementById('fbf-err'); err.style.display = 'none';
+    if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
+    if (!curCharacterName || !curSide) { showErr('Pilih nama karakter dari tim yang berhak melakukan restart.'); return; }
+    if (!selectedStyle) { showErr('Pilih gaya bermain terlebih dahulu: Pace, Power, atau Skill.'); return; }
+    var ic = document.getElementById('fbf-ic').value.trim();
+    beginRolling(ACTION_VERBING.kickoff);
+    postGAS({ action: 'startSecondHalf', matchCode: curMatch, characterName: curCharacterName, styleType: selectedStyle, icLine: ic, loggedInUsername: loggedInUsername }, function(d) {
+      if (d.error) { hideRolling(); showErr(d.error); return; }
+      afterAnim(d, runContestReveal);
+    });
+  }
+
   function doKickoff() {
     var err = document.getElementById('fbf-err'); err.style.display = 'none';
     if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
     if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
-    if (!selectedStyle) { showErr('Pilih gaya main dulu: Pace, Power, atau Skill.'); return; }
+    if (!selectedStyle) { showErr('Pilih gaya bermain terlebih dahulu: Pace, Power, atau Skill.'); return; }
     var ic = document.getElementById('fbf-ic').value.trim();
     beginRolling(ACTION_VERBING.kickoff);
     // Kick off IS the restart pass now (server resolves it through the
@@ -891,7 +1273,7 @@
     if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
     if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
     if (!selectedAction) { showErr('Pilih aksi dulu.'); return; }
-    if (!selectedStyle) { showErr('Pilih gaya main dulu: Pace, Power, atau Skill.'); return; }
+    if (!selectedStyle) { showErr('Pilih gaya bermain terlebih dahulu: Pace, Power, atau Skill.'); return; }
     var ic = document.getElementById('fbf-ic').value.trim();
     beginRolling(ACTION_VERBING[selectedAction] || 'Rolling...');
     postGAS({ action: 'submitRoll', matchCode: curMatch, characterName: curCharacterName, chosenAction: selectedAction, styleType: selectedStyle, icLine: ic, loggedInUsername: loggedInUsername }, function(d) {
@@ -904,7 +1286,7 @@
     var err = document.getElementById('fbf-err'); err.style.display = 'none';
     if (!curMatch) { showErr('Pilih pertandingan dulu.'); return; }
     if (!curCharacterName || !curSide) { showErr('Pilih nama karaktermu dulu.'); return; }
-    if (!selectedStyle) { showErr('Pilih gaya main dulu: Pace, Power, atau Skill.'); return; }
+    if (!selectedStyle) { showErr('Pilih gaya bermain terlebih dahulu: Pace, Power, atau Skill.'); return; }
     var ic = document.getElementById('fbf-ic').value.trim();
     var actingAsShooter = scoreData && curSide === scoreData.shootReady;
     beginRolling(actingAsShooter ? ACTION_VERBING.shoot : ACTION_VERBING.save);
@@ -969,12 +1351,29 @@
   // matched their action (DF+Tackle, MF+Interception, FW+Shoot) for the
   // flat +10 rollForCharacter() already applied server-side — shown here
   // as a badge next to the final roll, not applied again client-side.
-  function revealBoxRoll(prefix, styleText, roll, bonus, duration, callback) {
+  function revealBoxRoll(prefix, styleText, rawRoll, roll, bonus, duration, callback) {
     var rps = document.getElementById('fbf-' + prefix + '-rps');
+    var rollEl = document.getElementById('fbf-' + prefix + '-roll');
+    var bonusEl = document.getElementById('fbf-' + prefix + '-roll-bonus');
+    var totalEl = document.getElementById('fbf-' + prefix + '-roll-total');
     rps.style.display = 'flex';
     document.getElementById('fbf-' + prefix + '-style').textContent = styleText;
-    rollAnim(document.getElementById('fbf-' + prefix + '-roll'), roll + (bonus ? ' 🌟 (+10)' : ''), duration);
-    setTimeout(callback, duration);
+    bonusEl.textContent = '';
+    totalEl.textContent = '';
+    rollAnim(rollEl, rawRoll, duration);
+    setTimeout(function() {
+      var bonusAmount = Math.max(0, Number(roll) - Number(rawRoll));
+      if (bonus && bonusAmount > 0) {
+        rollEl.textContent = String(rawRoll);
+        bonusEl.innerHTML = '<span style="font-size:0.55rem; vertical-align:1px; color:#d4a017;">★</span> +' + bonusAmount;
+        totalEl.textContent = '= ' + roll;
+      } else {
+        rollEl.textContent = String(roll);
+        bonusEl.textContent = '';
+        totalEl.textContent = '';
+      }
+      callback();
+    }, duration);
   }
 
   function showRevealStage() {
@@ -991,6 +1390,8 @@
       document.getElementById('fbf-row-' + p + '-name').textContent = '—';
       document.getElementById('fbf-' + p + '-action').textContent = '—';
       document.getElementById('fbf-' + p + '-roll').textContent = '--';
+      document.getElementById('fbf-' + p + '-roll-bonus').textContent = '';
+      document.getElementById('fbf-' + p + '-roll-total').textContent = '';
     });
     document.getElementById('fbf-goto-link').style.display = 'none';
   }
@@ -1053,7 +1454,7 @@
       var cont = OUTCOME_CONTINUATION[d.outcome] ? OUTCOME_CONTINUATION[d.outcome](attSchool, defSchool) : (attSchool + ' still has the ball possession.');
       main = defName + ' ' + verb + ' ' + attName + ' but failed to get the ball - ' + cont;
     }
-    return main;
+    return sentencePunctuation(main);
   }
 
   function runContestReveal(d) {
@@ -1062,9 +1463,9 @@
 
     if (d.status === 'pending') {
       document.getElementById('fbf-row-opp').style.display = 'none';
-      showBoxIntro('mine', esc(d.myCharacter) + ' (' + d.myPosition + ')', 'is ' + (ACTION_ING[d.myAction] || 'rolling') + '...');
+      showBoxIntro('mine', esc(d.myCharacter) + ' (' + positionLabel(d.myPosition) + ')', 'is ' + (ACTION_ING[d.myAction] || 'rolling') + '...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, d.myBonus, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', (d.myRawRoll != null ? d.myRawRoll : d.myRoll - (d.myBonus ? 10 : 0)), d.myRoll, d.myBonus, 2000, function() {
           var waiting = document.getElementById('fbf-waiting-text');
           waiting.style.display = 'block';
           waiting.textContent = 'Waiting for ' + esc(d.waitingFor==='A'?meta.schoolA:meta.schoolB) + ' to roll...';
@@ -1080,12 +1481,12 @@
     // 1) name + "is X-ing..." for the attacker's box, then the defender's.
     // 2) back to the attacker's box for style + dice, then the defender's.
     // 3) margin, then the succeed/fail headline, then the full narrative.
-    showBoxIntro('mine', esc(d.attack.character) + ' (' + d.attack.position + ', ' + esc(attSchool) + ')', 'is ' + ACTION_ING[d.attack.action] + '...');
+    showBoxIntro('mine', esc(d.attack.character) + ' (' + positionLabel(d.attack.position) + ', ' + esc(attSchool) + ')', 'is ' + ACTION_ING[d.attack.action] + '...');
     setTimeout(function() {
-      showBoxIntro('opp', esc(d.defend.character) + ' (' + d.defend.position + ', ' + esc(defSchool) + ')', 'is ' + ACTION_ING[d.defend.action] + '...');
+      showBoxIntro('opp', esc(d.defend.character) + ' (' + positionLabel(d.defend.position) + ', ' + esc(defSchool) + ')', 'is ' + ACTION_ING[d.defend.action] + '...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.attack.style] || '', d.attack.roll, d.attack.bonus, 2000, function() {
-          revealBoxRoll('opp', STYLE_LABELS[d.defend.style] || '', d.defend.roll, d.defend.bonus, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.attack.style] || '', (d.attack.rawRoll != null ? d.attack.rawRoll : d.attack.roll - (d.attack.bonus ? 10 : 0)), d.attack.roll, d.attack.bonus, 2000, function() {
+          revealBoxRoll('opp', STYLE_LABELS[d.defend.style] || '', (d.defend.rawRoll != null ? d.defend.rawRoll : d.defend.roll - (d.defend.bonus ? 10 : 0)), d.defend.roll, d.defend.bonus, 2000, function() {
             showMargin(d.margin);
             setTimeout(function() {
               showHeadline(contestHeadline(d));
@@ -1113,9 +1514,9 @@
 
   function shootNarrative(d) {
     var shooter = esc(d.shoot.character), gk = esc(d.save.character);
-    if (d.outcome === 'goal') return shooter + ' scored past ' + gk + " - it's a GOAL!";
-    if (d.outcome === 'offside') return shooter + "'s shot is called back for offside - no goal.";
-    return shooter + "'s shot was saved by " + gk + ' - no goal.';
+    if (d.outcome === 'goal') return shooter + ' scored past ' + gk + ". It's a GOAL!";
+    if (d.outcome === 'offside') return shooter + "'s shot is called back for offside. No goal.";
+    return shooter + "'s shot was saved. No goal.";
   }
 
   function runShootReveal(d) {
@@ -1123,9 +1524,9 @@
 
     if (d.status === 'pending') {
       document.getElementById('fbf-row-opp').style.display = 'none';
-      showBoxIntro('mine', esc(d.myCharacter) + ' (' + d.myPosition + ')', 'is shooting...');
+      showBoxIntro('mine', esc(d.myCharacter) + ' (' + positionLabel(d.myPosition) + ')', 'is shooting...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', d.myRoll, d.myBonus, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.myStyle] || '', (d.myRawRoll != null ? d.myRawRoll : d.myRoll - (d.myBonus ? 10 : 0)), d.myRoll, d.myBonus, 2000, function() {
           var waiting = document.getElementById('fbf-waiting-text');
           waiting.style.display = 'block';
           waiting.textContent = 'Waiting for the opponent to roll...';
@@ -1135,15 +1536,15 @@
       return;
     }
 
-    showBoxIntro('mine', esc(d.shoot.character) + ' (' + d.shoot.position + ')', 'is shooting...');
+    showBoxIntro('mine', esc(d.shoot.character) + ' (' + positionLabel(d.shoot.position) + ')', 'is shooting...');
     setTimeout(function() {
-      showBoxIntro('opp', esc(d.save.character) + ' (' + d.save.position + ')', 'is saving...');
+      showBoxIntro('opp', esc(d.save.character) + ' (' + positionLabel(d.save.position) + ')', 'is saving...');
       setTimeout(function() {
-        revealBoxRoll('mine', STYLE_LABELS[d.shoot.style] || '', d.shoot.roll, d.shoot.bonus, 2000, function() {
-          revealBoxRoll('opp', STYLE_LABELS[d.save.style] || '', d.save.roll, d.save.bonus, 2000, function() {
+        revealBoxRoll('mine', STYLE_LABELS[d.shoot.style] || '', (d.shoot.rawRoll != null ? d.shoot.rawRoll : d.shoot.roll - (d.shoot.bonus ? 10 : 0)), d.shoot.roll, d.shoot.bonus, 2000, function() {
+          revealBoxRoll('opp', STYLE_LABELS[d.save.style] || '', (d.save.rawRoll != null ? d.save.rawRoll : d.save.roll - (d.save.bonus ? 10 : 0)), d.save.roll, d.save.bonus, 2000, function() {
             showMargin(d.margin);
             setTimeout(function() {
-              var headline = d.outcome === 'goal' ? 'GOAL! ⚽' : d.outcome === 'offside' ? 'Offside — no goal.' : 'Saved!';
+              var headline = d.outcome === 'goal' ? 'GOAL! ⚽' : d.outcome === 'offside' ? 'Offside. No goal.' : 'Saved!';
               showHeadline(headline);
               setTimeout(function() {
                 var detail = '<i>' + shootNarrative(d) + '</i>';
@@ -1180,6 +1581,12 @@
       // rendering (e.g. a missing DOM element) surfaces as its own real
       // error instead of being swallowed and misreported as a JSON/server
       // problem when the response was actually fine.
+      if (parsed && !parsed.error && curCharacterName) {
+        setTimeout(function() {
+          var selected = rosterList.filter(function(c) { return c.characterName === curCharacterName; })[0];
+          refreshDailyRollCounter(curCharacterName, selected && selected.position);
+        }, 350);
+      }
       cb(parsed);
     };
     xr.onerror = function() { hideRolling(); showErr('Koneksi ke server gagal.'); };
