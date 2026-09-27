@@ -1,5 +1,5 @@
 <!-- SUBMIT PAGE — paste inside Webpage Maker -->
-<!-- Replace GAS_URL_HERE and MATCH_PAGE_URL_HERE -->
+<!-- Replace RULES_BRACKET_URL_HERE (below "FOOTBALL" in the header) with the Rules & Bracket page's link once it exists -->
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&family=Josefin+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
@@ -29,7 +29,18 @@
   font-size: 15px;
 }
 .fbf-eventname { font-family: 'Josefin Sans', sans-serif; font-size: 1.404rem; font-weight: bold; color: var(--pitch-2); text-align: center; margin-bottom: 0.4rem; line-height: 1.3; }
-.fbf-eventsub { font-family: 'IBM Plex Mono', monospace; font-size: 0.608rem; letter-spacing: 2px; text-transform: uppercase; color: var(--pitch-1); text-align: center; margin-bottom: 2rem; font-weight: bold; }
+.fbf-eventsub { font-family: 'IBM Plex Mono', monospace; font-size: 0.608rem; letter-spacing: 2px; text-transform: uppercase; color: var(--pitch-1); text-align: center; margin-bottom: 1rem; font-weight: bold; }
+
+.fbf-nav-row { display: flex; justify-content: center; gap: 0.6rem; margin-bottom: 2rem; flex-wrap: wrap; }
+.fbf-nav-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--pitch-2); border: none; border-radius: 999px;
+  padding: 0.5rem 1.1rem; font-family: 'Nunito', sans-serif; font-weight: bold; font-size: 0.78rem;
+  color: var(--text-on-deep) !important; -webkit-text-fill-color: var(--text-on-deep);
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  box-shadow: 0 4px 0 -1px rgba(4,10,7,0.4), 0 7px 12px -3px var(--pitch-shadow);
+}
+.fbf-nav-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
 
 .fbf-field { margin-bottom: 1rem; }
 .fbf-label { display: block; font-size: 0.608rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--pitch-2); margin-bottom: 0.4rem; font-weight: bold; }
@@ -247,6 +258,11 @@
 <div class="fbf">
   <p class="fbf-eventname">Suwon-si High School Competition 2023</p>
   <p class="fbf-eventsub">⚽ Football</p>
+
+  <div class="fbf-nav-row">
+    <a class="fbf-nav-btn" href="https://hakgyo.jcink.net/index.php?act=Pages&amp;kid=footballmtch">Scoreboard</a>
+    <a class="fbf-nav-btn" href="RULES_BRACKET_URL_HERE">Rules &amp; Bracket</a>
+  </div>
 
 <div class="fbf-guide">
   <div class="fbf-guide-title">Panduan Mengisi Form</div>
