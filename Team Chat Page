@@ -49,6 +49,17 @@
   margin: 0 0 8px 0;
 }
 
+.tc-rules {
+  margin: 0 0 10px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.tc-rules li { margin-bottom: 2px; }
+.tc-rules strong { color: var(--danger); }
+
 .tc-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .tc-tab {
@@ -173,6 +184,11 @@
   <div class="tc-card">
     <div class="tc-header">
       <p class="tc-title">Chat Tim</p>
+      <ol class="tc-rules">
+        <li>Chat ini digunakan khusus untuk koordinasi terkait pertandingan, bukan untuk obrolan di luar itu.</li>
+        <li>Jaga sopan santun — hindari kata-kata yang bisa menyinggung sesama anggota tim.</li>
+        <li><strong>Dilarang</strong> membahas pilihan strategi/gaya bermain yang dipakai saat roll di chat ini. Ada kemungkinan satu penulis memegang karakter dari kedua tim yang bertanding (mode PvP), jadi pilihan strategi cukup diketahui kalian dan Tuhan saja #azegh</li>
+      </ol>
       <div class="tc-tabs" id="tc-tabs" style="display:none;"></div>
     </div>
     <div class="tc-status" id="tc-status">Memeriksa akun forum...</div>
